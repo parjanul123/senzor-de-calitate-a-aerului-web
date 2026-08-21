@@ -353,10 +353,11 @@ class AIInterfaceManager {
                 .join(',');
             try {
                 const forecast = await this.postAI(
-                    `${API_CONFIG.ENDPOINTS.ai.predict}?algorithm=${encodeURIComponent(algorithm)}&include_forecast=true&forecast_horizons=${encodeURIComponent(forecastHorizons)}`,
-                    { device_id: this.currentDevice }
+                    `${API_CONFIG.ENDPOINTS.ai.predict}?device_id=${encodeURIComponent(this.currentDevice)}&algorithm=${encodeURIComponent(algorithm)}&include_forecast=true&forecast_horizons=${encodeURIComponent(forecastHorizons)}`,
+                    predictionPayload
                 );
                 prediction.forecast = forecast.forecast;
+                prediction.forecast_device_id = this.currentDevice;
             } catch (error) {
                 prediction.forecastError = error.message;
             }
@@ -450,7 +451,7 @@ class AIInterfaceManager {
         if (Array.isArray(prediction.forecast) && prediction.forecast.length > 0) {
             html += `
                 <div class="prediction-metric">
-                    <strong>Prognoză viitoare:</strong>
+                    <strong>Prognoză viitoare pentru dispozitivul ${this.escapeHtml(String(prediction.forecast_device_id || this.currentDevice))}:</strong>
                     <div class="table-responsive mt-2">
                         <table class="table table-sm table-striped mb-0">
                             <thead>
