@@ -38,6 +38,7 @@ class AIMockEndpointTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["mock"])
+        self.assertIn("reply", response.json())
 
     def test_anomaly_returns_mock_data(self):
         response = self.client.post(

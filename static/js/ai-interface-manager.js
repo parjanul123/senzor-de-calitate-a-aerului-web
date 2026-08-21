@@ -156,14 +156,27 @@ class AIInterfaceManager {
         const chatInput = document.getElementById('chat-input');
         const sendButton = document.getElementById('chat-send-button');
         const clearButton = document.getElementById('chat-clear-button');
-        
+
+        const chatDisplay = document.getElementById('chat-display');
+        if (chatDisplay && chatDisplay.children.length === 0) {
+            this.addChatMessage({
+                role: 'assistant',
+                content: 'Bună! Sunt agentul Aerosenzor. Pentru a continua conversația, selectează un dispozitiv din listă și apoi pot să-ți răspund despre calitatea aerului, senzorii și recomandări.',
+                timestamp: new Date()
+            });
+        }
+
         if (sendButton) {
             sendButton.addEventListener('click', () => this.sendChatMessage());
         }
-        
+
         if (chatInput) {
             chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
+                    if (!this.currentDevice) {
+                        e.preventDefault();
+                        return;
+                    }
                     e.preventDefault();
                     this.sendChatMessage();
                 }
@@ -173,6 +186,8 @@ class AIInterfaceManager {
         if (clearButton) {
             clearButton.addEventListener('click', () => this.clearChatHistory());
         }
+
+        this.updateChatInputState();
     }
     
     /**
@@ -181,8 +196,22 @@ class AIInterfaceManager {
     async sendChatMessage() {
         const chatInput = document.getElementById('chat-input');
         const message = chatInput.value.trim();
-        
+
         if (!message) return;
+
+        if (!this.currentDevice) {
+            const deviceNames = this.getAvailableDeviceNames();
+            const listText = deviceNames.length > 0
+                ? `Dispozitive disponibile: ${deviceNames.join(', ')}.`
+                : 'Momentan nu există dispozitive disponibile.';
+
+            this.addChatMessage({
+                role: 'assistant',
+                content: `Bună! Sunt agentul Aerosenzor. Pentru a continua discuția, selectează un dispozitiv din listă. ${listText}`,
+                timestamp: new Date()
+            });
+            return;
+        }
         
         this.addChatMessage({
             role: 'user',
@@ -196,6 +225,7 @@ class AIInterfaceManager {
         try {
             const response = await this.postAI(API_CONFIG.ENDPOINTS.ai.chat, {
                 message,
+                device_id: this.currentDevice,
                 history: this.chatHistory.slice(-12).map(({ role, content }) => ({ role, content }))
             });
             
@@ -203,7 +233,7 @@ class AIInterfaceManager {
             
             this.addChatMessage({
                 role: 'assistant',
-                content: response.reply || 'Backendul AI nu a returnat un raspuns text.',
+                content: response.reply || response.message || 'Backendul AI nu a returnat un raspuns text.',
                 timestamp: new Date()
             });
             
@@ -954,7 +984,38 @@ class AIInterfaceManager {
     }
 
     getDeviceSelectors() {
-        return Array.from(document.querySelectorAll('#ai-device-select, .ai-operation-device-select'));
+        return Array.from(document.querySelectorAll('#ai-device-select, #chat-device-select, .ai-operation-device-select'));
+    }
+
+    updateChatInputState() {
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('chat-send-button');
+
+        const isEnabled = Boolean(this.currentDevice);
+        if (chatInput) {
+            chatInput.disabled = !isEnabled;
+            chatInput.placeholder = isEnabled
+                ? 'Scrie întrebarea pentru Aerosenzor...'
+                : 'Selectează un dispozitiv pentru a continua...';
+        }
+        if (sendButton) {
+            sendButton.disabled = !isEnabled;
+        }
+    }
+
+    getAvailableDeviceNames() {
+        const selectors = this.getDeviceSelectors();
+        const names = [];
+
+        selectors.forEach((select) => {
+            Array.from(select.options).forEach((option) => {
+                if (option.value && option.textContent && option.textContent.trim() !== 'Selectează un dispozitiv...' && !names.includes(option.textContent.trim())) {
+                    names.push(option.textContent.trim());
+                }
+            });
+        });
+
+        return names;
     }
     
     /**
@@ -981,10 +1042,16 @@ class AIInterfaceManager {
                 });
             });
 
-            // Auto-select first device if available
             if (devices.length > 0) {
-                this.currentDevice = devices[0].id;
-                this.onDeviceChanged();
+                const deviceNames = devices.map((device) => device.name || device.id);
+                const chatDisplay = document.getElementById('chat-display');
+                if (chatDisplay && chatDisplay.children.length > 0) {
+                    this.addChatMessage({
+                        role: 'assistant',
+                        content: `Bună! Sunt agentul Aerosenzor. Pentru a continua discuția, selectează un dispozitiv din listă: ${deviceNames.join(', ')}.`,
+                        timestamp: new Date()
+                    });
+                }
             }
         } catch (error) {
             console.error('Error loading devices:', error);
@@ -1001,6 +1068,8 @@ class AIInterfaceManager {
         this.getDeviceSelectors().forEach((deviceSelect) => {
             deviceSelect.value = this.currentDevice || '';
         });
+
+        this.updateChatInputState();
 
         const deviceInfo = document.getElementById('ai-device-info');
         if (deviceInfo && this.currentDevice) {

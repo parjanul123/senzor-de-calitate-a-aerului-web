@@ -27,7 +27,11 @@ class AIService:
         }
 
     def chat(self, message):
+        welcome_message = "Bine ați venit! Îți pot ajuta cu calitatea aerului, senzorii și recomandări rapide."
+        response_text = f"Raspuns demonstrativ pentru: {message}"
         return {
-            "message": f"Raspuns demonstrativ pentru: {message}",
+            "message": response_text,
+            "reply": response_text,
+            "welcome_message": welcome_message,
             "mock": True,
         }

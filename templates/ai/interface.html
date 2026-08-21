@@ -74,11 +74,17 @@
                         <div id="chat-display"></div>
                     </div>
                     <div class="card-footer">
+                        <div class="mb-3">
+                            <label class="form-label small mb-1" for="chat-device-select">Dispozitiv pentru chat</label>
+                            <select id="chat-device-select" class="form-select ai-operation-device-select">
+                                <option value="">Selectează un dispozitiv...</option>
+                            </select>
+                        </div>
                         <div class="input-group">
                             <textarea id="chat-input" class="form-control" 
-                                    placeholder="Ask me about air quality, sensors, or recommendations..."
-                                    rows="2"></textarea>
-                            <button id="chat-send-button" class="btn btn-primary">
+                                    placeholder="Selectează un dispozitiv pentru a continua..."
+                                    rows="2" disabled></textarea>
+                            <button id="chat-send-button" class="btn btn-primary" disabled>
                                 Send
                             </button>
                         </div>
