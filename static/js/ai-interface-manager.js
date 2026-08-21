@@ -480,7 +480,7 @@ class AIInterfaceManager {
                 if (!check) return '<br><span class="badge bg-secondary">Not configured</span>';
                 const labels = {
                     in_interval: ['success', 'Good'],
-                    sub_minim: ['warning', 'Moderate'],
+                    sub_minim: ['danger', 'Poor'],
                     peste_maxim: ['danger', 'Poor'],
                     good: ['success', 'Good'],
                     moderate: ['warning', 'Moderate'],

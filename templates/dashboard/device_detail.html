@@ -24,7 +24,7 @@
             <div class="alert {% if transport_status.state == 'out_of_range' %}alert-danger{% elif transport_status.state == 'in_range' %}alert-success{% else %}alert-secondary{% endif %} d-flex justify-content-between align-items-center" role="status">
                 <div>
                     <strong>{{ transport_profile.profile_name }}</strong>: pragurile configurate sunt monitorizate.
-                    {% if transport_status.state == 'in_range' %}Toate valorile curente sunt in interval.{% elif transport_status.state == 'out_of_range' %}Cel putin o valoare curenta este in afara intervalului.{% else %}Asteptam masuratori pentru parametrii configurati.{% endif %}
+                    {% if transport_status.state == 'in_range' %}Good: toate valorile curente sunt in interval.{% elif transport_status.state == 'out_of_range' %}Poor: cel putin o valoare curenta este in afara intervalului.{% else %}Asteptam masuratori pentru parametrii configurati.{% endif %}
                 </div>
                 <a href="{% url 'devices:transport_profile' device.device_id %}" class="btn btn-sm btn-outline-dark">Modifica</a>
             </div>

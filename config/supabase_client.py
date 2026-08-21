@@ -314,8 +314,29 @@ class SupabaseService:
         if not profile:
             return None
         name = profile.get("name", "")
-        if not isinstance(name, str) or not name.startswith(SupabaseService._TRANSPORT_PROFILE_PREFIX):
+        if not isinstance(name, str):
             return None
+        if not name.startswith(SupabaseService._TRANSPORT_PROFILE_PREFIX):
+            legacy_columns = {
+                "temperatura": ("temperature_min", "temperature_max"),
+                "umiditate": ("humidity_min", "humidity_max"),
+                "co2": ("co2_min", "co2_max"),
+                "pm25": ("pm25_min", "pm25_max"),
+                "pm10": ("pm10_min", "pm10_max"),
+            }
+            thresholds = {
+                parameter: {"minimum": profile[minimum], "maximum": profile[maximum]}
+                for parameter, (minimum, maximum) in legacy_columns.items()
+                if profile.get(minimum) is not None and profile.get(maximum) is not None
+            }
+            if not thresholds:
+                return None
+            return {
+                **profile,
+                "profile_name": name or "Profil legacy",
+                "thresholds": thresholds,
+                "is_active": True,
+            }
         try:
             profile_data = json.loads(name.removeprefix(SupabaseService._TRANSPORT_PROFILE_PREFIX))
         except json.JSONDecodeError:
