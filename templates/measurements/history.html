@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Istoric Măsurători - Senzor Calitate{% endblock %}
+
+{% block content %}
+<div class="container-lg">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <a href="javascript:history.back()" class="btn btn-sm btn-outline-secondary mb-3">← Înapoi</a>
+            {% if device %}
+                <h1 class="h3 mb-1">Istoric Măsurători - {{ device.name }}</h1>
+                <p class="text-muted">ID: {{ device.device_id }}</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if measurements %}
+        <!-- Filters -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <p class="text-muted">Total: <strong>{{ count }}</strong> măsurători</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <form method="get" class="d-flex gap-2">
+                    <select name="limit" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="100" {% if request.GET.limit == '100' or not request.GET.limit %}selected{% endif %}>Ultimele 100</option>
+                        <option value="500" {% if request.GET.limit == '500' %}selected{% endif %}>Ultimele 500</option>
+                        <option value="1000" {% if request.GET.limit == '1000' %}selected{% endif %}>Ultimele 1000</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Measurements Table -->
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>Timp</th>
+                        <th>Temperatură (°C)</th>
+                        <th>Umiditate (%)</th>
+                        <th>Presiune (hPa)</th>
+                        <th>CO₂ (ppm)</th>
+                        <th>PM1 (μg/m³)</th>
+                        <th>PM2.5 (μg/m³)</th>
+                        <th>PM10 (μg/m³)</th>
+                        <th>VOC (ppb)</th>
+                        <th>Lux</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for measurement in measurements %}
+                        <tr>
+                            <td>
+                                <strong>{{ measurement.created_at|date:"d/m/Y H:i" }}</strong>
+                            </td>
+                            <td>
+                                {% if measurement.temperatura %}
+                                    <span class="badge bg-danger">{{ measurement.temperatura }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.umiditate %}
+                                    <span class="badge bg-info">{{ measurement.umiditate }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.presiune %}
+                                    {{ measurement.presiune }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.co2 %}
+                                    <span class="badge bg-warning">{{ measurement.co2 }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.pm1 %}
+                                    {{ measurement.pm1 }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.pm25 %}
+                                    <strong>{{ measurement.pm25 }}</strong>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.pm10 %}
+                                    {{ measurement.pm10 }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.voc %}
+                                    {{ measurement.voc }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if measurement.lux %}
+                                    {{ measurement.lux }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">Nicio măsurătoare disponibilă</h4>
+            <p>Dispozitivul nu are măsurători înregistrate sau dispozitivul nu a fost găsit.</p>
+        </div>
+    {% endif %}
+    
+    <!-- Actions -->
+    <div class="row mt-4">
+        <div class="col">
+            {% if device %}
+                <a href="{% url 'dashboard:device' device.device_id %}" class="btn btn-primary">
+                    📈 Dashboard Grafice
+                </a>
+                <a href="{% url 'dashboard:index' %}" class="btn btn-outline-secondary">
+                    📊 Toate Dispozitivele
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-responsive {
+        max-height: 800px;
+        overflow-y: auto;
+    }
+    
+    .sticky-top {
+        top: 0;
+        z-index: 10;
+    }
+</style>
+{% endblock %}

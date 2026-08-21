@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard | Calitatea aerului</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+  <main class="container py-4 py-md-5">
+    <header class="mb-4">
+      <p class="text-uppercase text-secondary small mb-1">Monitorizare</p>
+      <h1 class="h2 mb-0">Dashboard calitatea aerului</h1>
+    </header>
+
+    {% if measurements is None %}
+      <div class="alert alert-danger" role="alert">Datele din tabela measurements nu pot fi citite momentan.</div>
+    {% elif not measurements.latest %}
+      <div class="alert alert-secondary" role="alert">Tabela measurements nu contine inca masuratori.</div>
+    {% else %}
+      <section class="mb-5" aria-labelledby="latest-measurement">
+        <h2 id="latest-measurement" class="h4 mb-3">Ultima masuratoare</h2>
+        <div class="bg-white border rounded-3 p-3 p-md-4">
+          <dl class="row mb-0">
+            {% for column, value in measurements.latest.items %}
+              <dt class="col-sm-4 text-secondary fw-normal text-break">{{ column }}</dt>
+              <dd class="col-sm-8 fw-semibold text-break">{{ value|default_if_none:"-" }}</dd>
+            {% endfor %}
+          </dl>
+        </div>
+      </section>
+
+      <section aria-labelledby="recent-measurements">
+        <div class="d-flex justify-content-between align-items-baseline mb-3">
+          <h2 id="recent-measurements" class="h4 mb-0">Ultimele 20 de masuratori</h2>
+          <span class="text-secondary small">{{ measurements.recent|length }} afisate</span>
+        </div>
+        <div class="table-responsive bg-white border rounded-3">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                {% for column in measurements.columns %}<th scope="col" class="text-nowrap">{{ column }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for measurement in measurements.recent %}
+                <tr>
+                  {% for value in measurement.values %}<td class="text-nowrap">{{ value|default_if_none:"-" }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="border-top pt-4 mt-5" aria-labelledby="ai-analysis">
+      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
+        <div>
+          <p class="text-uppercase text-secondary small mb-1">Analiza datelor</p>
+          <h2 id="ai-analysis" class="h4 mb-1">AI pentru calitatea aerului</h2>
+          <p class="text-secondary mb-0">Obține o predicție și adresează întrebări despre valorile măsurate.</p>
+        </div>
+        <a class="btn btn-primary align-self-start align-self-sm-center" href="{% url 'ai:interface' %}">Deschide analiza AI</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Dispozitive - Senzor Calitate{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- CSRF Token -->
+    {% csrf_token %}
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3">Dispozitivele Mele</h1>
+            <p class="text-muted">Gestionează și monitorizează dispozitivele tale conectate.</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'dashboard:index' %}" class="btn btn-primary">
+                📊 Înapoi la Dashboard
+            </a>
+        </div>
+    </div>
+    
+    {% if devices %}
+        <!-- Devices Table -->
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nume Dispozitiv</th>
+                        <th>Locație</th>
+                        <th>Status</th>
+                        <th>Ultima Sincronizare</th>
+                        <th>Temperatură</th>
+                        <th>Umiditate</th>
+                        <th>PM2.5</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in devices %}
+                        {% with device=item.device measurement=item.latest_measurement %}
+                            <tr>
+                                <td>
+                                    <strong>{{ device.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">ID: {{ device.device_id }}</small>
+                                </td>
+                                <td>
+                                    <div class="location-cell" data-device-id="{{ device.device_id }}">
+                                        <input 
+                                            type="text" 
+                                            class="form-control form-control-sm location-input"
+                                            placeholder="Adaugă locație..."
+                                            value="{{ device.location|default:'' }}"
+                                            data-device-id="{{ device.device_id }}"
+                                            style="max-width: 150px;"
+                                        >
+                                        <button 
+                                            class="btn btn-sm btn-outline-success save-location mt-1"
+                                            data-device-id="{{ device.device_id }}"
+                                            title="Salvează locația"
+                                        >
+                                            💾
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if measurement %}
+                                        <span class="badge bg-success">🟢 Online</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">⚫ Offline</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if measurement.created_at %}
+                                        {{ measurement.created_at|date:"d/m/Y H:i" }}
+                                        <br>
+                                        <small class="text-muted">
+                                            <!-- Show time ago would need additional calculation -->
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if measurement.temperatura %}
+                                        <strong>{{ measurement.temperatura }}°C</strong>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if measurement.umiditate %}
+                                        <strong>{{ measurement.umiditate }}%</strong>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if measurement.pm25 %}
+                                        <strong>{{ measurement.pm25 }} μg/m³</strong>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{% url 'dashboard:device' device.device_id %}" class="btn btn-outline-primary" title="Dashboard">
+                                            📈
+                                        </a>
+                                        <a href="{% url 'measurements:history' device.device_id %}" class="btn btn-outline-info" title="Istoric">
+                                            📋
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Device Cards View (Mobile Friendly) -->
+        <div class="d-md-none">
+            <div class="row">
+                {% for item in devices %}
+                    {% with device=item.device measurement=item.latest_measurement %}
+                        <div class="col-12 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <h5 class="card-title mb-1">{{ device.name }}</h5>
+                                            <p class="text-muted mb-0" style="font-size: 0.875rem;">{{ device.device_id }}</p>
+                                        </div>
+                                        {% if measurement %}
+                                            <span class="badge bg-success">Online</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Offline</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if measurement %}
+                                        <div class="row text-center mb-3">
+                                            <div class="col-4">
+                                                <div style="font-size: 1.25rem; font-weight: bold;">{{ measurement.temperatura|default:"—" }}°</div>
+                                                <small class="text-muted">Temp</small>
+                                            </div>
+                                            <div class="col-4">
+                                                <div style="font-size: 1.25rem; font-weight: bold;">{{ measurement.umiditate|default:"—" }}%</div>
+                                                <small class="text-muted">Umid</small>
+                                            </div>
+                                            <div class="col-4">
+                                                <div style="font-size: 1.25rem; font-weight: bold;">{{ measurement.pm25|default:"—" }}</div>
+                                                <small class="text-muted">PM2.5</small>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-grid gap-2">
+                                        <a href="{% url 'dashboard:device' device.device_id %}" class="btn btn-sm btn-primary">
+                                            📈 Dashboard
+                                        </a>
+                                        <a href="{% url 'measurements:history' device.device_id %}" class="btn btn-sm btn-outline-secondary">
+                                            📋 Istoric
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">Niciun dispozitiv conectat</h4>
+            <p>Nu ai niciun dispozitiv asociat contului tău. Contactează administratorul pentru a adăuga dispozitive.</p>
+            <hr>
+            <p class="mb-0">
+                <a href="{% url 'dashboard:index' %}" class="alert-link">Înapoi la Dashboard</a>
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle location save button clicks
+    document.querySelectorAll('.save-location').forEach(button => {
+        button.addEventListener('click', async function() {
+            const deviceId = this.getAttribute('data-device-id');
+            const input = document.querySelector(`.location-input[data-device-id="${deviceId}"]`);
+            const location = input.value.trim();
+            
+            if (!location) {
+                alert('Te rog introdu o locație');
+                return;
+            }
+            
+            const btn = this;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳';
+            
+            try {
+                const response = await fetch('{% url "devices:update_location" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        location: location
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    btn.textContent = '✅';
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                    // Reload page immediately to get updated data from Supabase
+                    window.location.reload();
+                } else {
+                    alert('Eroare: ' + (data.error || 'Nu s-a putut salva locația'));
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Eroare de conexiune: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        });
+    });
+});
+
+// Utility function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

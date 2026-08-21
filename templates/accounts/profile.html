@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Profil Utilizator - Senzor Calitate{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-white p-5">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h2 class="mb-3">
+                                👋 Bine ai venit!
+                            </h2>
+                            <div style="font-size: 2rem; font-weight: bold; margin-bottom: 1rem;">
+                                {{ username|default:"Utilizator" }}
+                            </div>
+                            <p class="mb-0 lead">
+                                Conectat cu succes la profilul tău
+                            </p>
+                            <small class="text-white-50 d-block mt-2">ID: {{ supabase_user_id|truncatechars:20 }}</small>
+                        </div>
+                        <div class="col-auto text-center">
+                            <div style="font-size: 4rem;">👤</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <a href="{% url 'dashboard:index' %}" class="btn btn-sm btn-outline-secondary mb-3">← Înapoi la Dashboard</a>
+            <h3 class="h5">📊 Informații Cont Detaliate</h3>
+            <p class="text-muted small">Toate datele tale de autentificare, dispozitive și sesiune</p>
+        </div>
+    </div>
+    
+    {% if supabase_user_id %}
+        <!-- Authentication & Session Data -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">🔐 Date Autentificare & Sesiune</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>ID Utilizator (User ID):</strong></label>
+                                    <p class="form-control-plaintext text-monospace bg-light p-2 rounded">
+                                        {{ supabase_user_id }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>ID Cerere QR Login:</strong></label>
+                                    <p class="form-control-plaintext text-monospace bg-light p-2 rounded">
+                                        {% if qr_login_request_id %}{{ qr_login_request_id }}{% else %}<span class="text-muted">—</span>{% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Autentificat la:</strong></label>
+                                    <p class="form-control-plaintext">
+                                        {% if authenticated_at %}
+                                            <i class="far fa-calendar"></i> {{ authenticated_at|date:"d/m/Y H:i:s" }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Status Sesiune:</strong></label>
+                                    <p class="form-control-plaintext">
+                                        <span class="badge bg-success">✓ Conectat și Activ</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- QR Login Request Data -->
+        {% if qr_login_data %}
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">📱 Date Cerere QR Login</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% if qr_login_data.id %}
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>ID Cerere (id):</strong></label>
+                                    <p class="form-control-plaintext text-monospace bg-light p-2 rounded">{{ qr_login_data.id }}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if qr_login_data.status %}
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Status Cerere (status):</strong></label>
+                                    <p class="form-control-plaintext">
+                                        {% if qr_login_data.status == 'approved' %}
+                                            <span class="badge bg-success">{{ qr_login_data.status|upper }}</span>
+                                        {% elif qr_login_data.status == 'pending' %}
+                                            <span class="badge bg-warning">{{ qr_login_data.status|upper }}</span>
+                                        {% else %}
+                                            {{ qr_login_data.status }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- User Devices -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">📊 Dispozitive ({{ device_count }})</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if user_devices %}
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID Dispozitiv</th>
+                                            <th>Nume</th>
+                                            <th>ID Proprietar</th>
+                                            <th>Acțiuni</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for device in user_devices %}
+                                        <tr>
+                                            <td><code style="font-size: 0.85rem;">{{ device.device_id }}</code></td>
+                                            <td><strong>{{ device.name }}</strong></td>
+                                            <td><code style="font-size: 0.85rem;">{{ device.owner_id }}</code></td>
+                                            <td>
+                                                <a href="{% url 'dashboard:device' device.device_id %}" class="btn btn-sm btn-primary">
+                                                    👁️ Vizualizează
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Nu ai dispozitive încă.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Session Data -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">📋 Date Sesiune (JSON) - Debugging</h5>
+                    </div>
+                    <div class="card-body">
+                        <pre class="bg-light p-3 rounded"><code style="font-size: 0.85rem;">{{ session_data }}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Navigation -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <nav class="d-flex gap-2 flex-wrap">
+                    <a href="{% url 'dashboard:index' %}" class="btn btn-outline-primary">📊 Dashboard</a>
+                    <a href="{% url 'devices:index' %}" class="btn btn-outline-primary">🔧 Dispozitive</a>
+                    <a href="{% url 'qr_login:logout' %}" class="btn btn-outline-danger">🚪 Deconectare</a>
+                </nav>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-danger">
+            ⚠️ Nu ești conectat. <a href="{% url 'qr_login:start' %}">Conectează-te acum</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Footer -->
+<footer class="text-center text-muted py-4 mt-5">
+    <p>© 2024 Sistem de Monitorizare Calitate Aer. Toate drepturile rezervate.</p>
+</footer>
+
+{% endblock %}

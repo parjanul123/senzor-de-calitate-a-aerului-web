@@ -1,0 +1,796 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard Dispozitiv - Senzor Calitate{% endblock %}
+
+{% block content %}
+<div class="container-lg">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <a href="{% url 'dashboard:index' %}" class="btn btn-sm btn-outline-secondary mb-3">← Înapoi</a>
+            {% if device %}
+                <h1 class="h3 mb-1">{{ device.name }}</h1>
+                <p class="text-muted">ID: {{ device.device_id }}</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% elif device %}
+        <!-- Latest Measurement Summary -->
+        {% if latest_measurement %}
+            <div class="row mb-4">
+                {% if latest_measurement.temperatura %}
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 2rem; font-weight: bold; color: #ff6b6b;" data-sensor="temperatura">
+                                {{ latest_measurement.temperatura|default:"—" }}°C
+                            </div>
+                            <div class="text-muted">Temperatură</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if latest_measurement.umiditate %}
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 2rem; font-weight: bold; color: #4ecdc4;" data-sensor="umiditate">
+                                {{ latest_measurement.umiditate|default:"—" }}%
+                            </div>
+                            <div class="text-muted">Umiditate</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if latest_measurement.presiune %}
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 2rem; font-weight: bold; color: #95a5a6;" data-sensor="presiune">
+                                {{ latest_measurement.presiune|default:"—" }} hPa
+                            </div>
+                            <div class="text-muted">Presiune</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 2rem; font-weight: bold; color: #f39c12;" data-sensor="co2">
+                                {{ latest_measurement.co2|default:"—" }} ppm
+                            </div>
+                            <div class="text-muted">CO₂</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #3498db;" data-sensor="pm1">
+                                {{ latest_measurement.pm1|default:"—" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.875rem;">PM1</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #e74c3c;" data-sensor="pm25">
+                                {{ latest_measurement.pm25|default:"—" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.875rem;">PM2.5</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #e67e22;" data-sensor="pm10">
+                                {{ latest_measurement.pm10|default:"—" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.875rem;">PM10</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #9b59b6;" data-sensor="voc">
+                                {{ latest_measurement.voc|default:"—" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.875rem;">VOC</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #f1c40f;" data-sensor="lux">
+                                {{ latest_measurement.lux|default:"—" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.875rem;">Lux</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div style="font-size: 0.875rem; color: #95a5a6;" data-sensor="timestamp">
+                                {{ latest_measurement.created_at|date:"d/m H:i" }}
+                            </div>
+                            <div class="text-muted" style="font-size: 0.8rem;">Ultimă</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        
+        <!-- Charts Section -->
+        {% if chart_data_json %}
+            <div class="row">
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">📊 Temperatură</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="temperatureChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">💧 Umiditate</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="humidityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">🌬️ Presiune</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="pressureChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">🌫️ CO₂</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="co2Chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">💨 PM1.0</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="pm1Chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">💨 PM2.5</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="pm25Chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">💨 PM10</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="pm10Chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">💡 Lux</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="luxChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">🌫️ VOC</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="vocChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                Nu sunt suficiente date pentru a afișa graficele. Conectează dispozitivul pentru a colecta măsurători.
+            </div>
+        {% endif %}
+        
+        <!-- Actions -->
+        <div class="row mt-4 mb-4">
+            <div class="col">
+                <a href="{% url 'measurements:history' device.device_id %}" class="btn btn-outline-secondary">
+                    📋 Vezi Istoric Complet
+                </a>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-danger">Dispozitivul nu a fost găsit.</div>
+    {% endif %}
+</div>
+
+{% block extra_js %}
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+    
+    <!-- Supabase Realtime Manager (Inline) -->
+    <script>
+        /**
+         * Supabase Realtime Integration for Dashboard
+         * - Connects to Supabase Realtime on page load
+         * - Subscribes to measurements for user's devices
+         * - Updates UI and charts in real-time
+         * - Maintains in-memory history
+         * - Cleans up on page unload
+         */
+
+        class SupabaseRealtimeManager {
+            constructor(supabaseUrl, supabaseKey, deviceId, userId) {
+                this.supabaseUrl = supabaseUrl;
+                this.supabaseKey = supabaseKey;
+                this.deviceId = deviceId;
+                this.userId = userId;
+                
+                // Import Supabase client from CDN
+                this.client = null;
+                this.channel = null;
+                this.measurements = []; // In-memory history
+                this.maxHistorySize = 1000;
+                this.charts = {}; // Store chart instances
+                this.isConnected = false;
+                
+                console.log(`[Realtime] Initialized for device: ${deviceId}, user: ${userId}`);
+            }
+
+            /**
+             * Initialize Supabase client and connect to Realtime
+             */
+            async init() {
+                try {
+                    // Wait for Supabase to be available globally
+                    if (typeof supabase === 'undefined') {
+                        console.error('[Realtime] Supabase client not loaded');
+                        return false;
+                    }
+
+                    this.client = supabase.createClient(this.supabaseUrl, this.supabaseKey);
+                    console.log('[Realtime] Supabase client initialized');
+                    
+                    // Connect to Realtime
+                    await this.connectToRealtime();
+                    return true;
+                } catch (error) {
+                    console.error('[Realtime] Initialization failed:', error);
+                    return false;
+                }
+            }
+
+            /**
+             * Connect to Supabase Realtime and subscribe to measurements
+             */
+            async connectToRealtime() {
+                try {
+                    // Subscribe to measurements table for this device
+                    // Filter by device_id using Realtime's filtering
+                    this.channel = this.client
+                        .channel(`measurements:device_id=eq.${this.deviceId}`)
+                        .on(
+                            'postgres_changes',
+                            {
+                                event: 'INSERT',
+                                schema: 'public',
+                                table: 'measurements',
+                                filter: `device_id=eq.${this.deviceId}`
+                            },
+                            (payload) => this.handleMeasurementInsert(payload)
+                        )
+                        .on(
+                            'postgres_changes',
+                            {
+                                event: 'UPDATE',
+                                schema: 'public',
+                                table: 'measurements',
+                                filter: `device_id=eq.${this.deviceId}`
+                            },
+                            (payload) => this.handleMeasurementUpdate(payload)
+                        )
+                        .subscribe((status) => {
+                            if (status === 'SUBSCRIBED') {
+                                this.isConnected = true;
+                                console.log(`[Realtime] ✅ Connected and subscribed to device ${this.deviceId}`);
+                                this.showNotification('Connected to real-time updates', 'success');
+                            } else if (status === 'CLOSED') {
+                                this.isConnected = false;
+                                console.log('[Realtime] Channel closed');
+                            } else if (status === 'CHANNEL_ERROR') {
+                                this.isConnected = false;
+                                console.error('[Realtime] Channel error');
+                                this.showNotification('Connection error', 'error');
+                            }
+                        });
+
+                } catch (error) {
+                    console.error('[Realtime] Failed to connect:', error);
+                    this.showNotification('Failed to connect to real-time updates', 'error');
+                }
+            }
+
+            /**
+             * Handle new measurement INSERT event
+             */
+            handleMeasurementInsert(payload) {
+                const measurement = payload.new;
+                console.log('[Realtime] New measurement received:', measurement);
+                
+                // Add to in-memory history
+                this.addToHistory(measurement);
+                
+                // Update UI elements
+                this.updateSensorValues(measurement);
+                
+                // Update all charts
+                this.updateCharts(measurement);
+                
+                // Show visual feedback
+                this.showNotification('📊 Measurement updated', 'info');
+            }
+
+            /**
+             * Handle measurement UPDATE event
+             */
+            handleMeasurementUpdate(payload) {
+                const measurement = payload.new;
+                console.log('[Realtime] Measurement updated:', measurement);
+                
+                // Update UI elements
+                this.updateSensorValues(measurement);
+                
+                // Update charts
+                this.updateCharts(measurement);
+                
+                this.showNotification('📊 Measurement updated', 'info');
+            }
+
+            /**
+             * Add measurement to in-memory history
+             */
+            addToHistory(measurement) {
+                this.measurements.push(measurement);
+                
+                // Keep only last maxHistorySize measurements
+                if (this.measurements.length > this.maxHistorySize) {
+                    this.measurements.shift();
+                }
+                
+                console.log(`[Realtime] History size: ${this.measurements.length}`);
+            }
+
+            /**
+             * Update sensor value displays
+             */
+            updateSensorValues(measurement) {
+                const sensorMap = {
+                    'temperatura': ['temperatura', '°C'],
+                    'umiditate': ['umiditate', '%'],
+                    'presiune': ['presiune', ' hPa'],
+                    'co2': ['co2', ' ppm'],
+                    'pm1': ['pm1', ''],
+                    'pm25': ['pm25', ''],
+                    'pm10': ['pm10', ''],
+                    'voc': ['voc', ''],
+                    'lux': ['lux', '']
+                };
+
+                for (const [key, [dataKey, unit]] of Object.entries(sensorMap)) {
+                    const value = measurement[dataKey];
+                    if (value !== undefined && value !== null) {
+                        const elements = document.querySelectorAll(
+                            `[data-sensor-value="${key}"], [data-sensor="${key}"]`
+                        );
+                        
+                        elements.forEach(el => {
+                            // Format value
+                            let displayValue = value;
+                            if (typeof value === 'number') {
+                                displayValue = value.toLocaleString('ro-RO', {
+                                    minimumFractionDigits: 1,
+                                    maximumFractionDigits: 1
+                                });
+                            }
+                            
+                            el.textContent = displayValue + unit;
+                            el.style.animation = 'pulse 0.5s ease-in-out';
+                            
+                            // Remove animation after it completes
+                            setTimeout(() => {
+                                el.style.animation = '';
+                            }, 500);
+                        });
+                    }
+                }
+
+                // Update timestamp
+                const timestamp = measurement.created_at;
+                if (timestamp) {
+                    const date = new Date(timestamp);
+                    const formatted = date.toLocaleString('ro-RO');
+                    const timestampElements = document.querySelectorAll('[data-sensor="timestamp"]');
+                    timestampElements.forEach(el => {
+                        el.textContent = formatted;
+                    });
+                }
+            }
+
+            /**
+             * Update Chart.js charts with new data
+             */
+            updateCharts(measurement) {
+                if (!window.chartInstances) {
+                    console.log('[Realtime] No charts found on this page');
+                    return;
+                }
+
+                const chartsToUpdate = [
+                    { key: 'temperatura', chartId: 'temperatureChart' },
+                    { key: 'umiditate', chartId: 'humidityChart' },
+                    { key: 'presiune', chartId: 'pressureChart' },
+                    { key: 'co2', chartId: 'co2Chart' },
+                    { key: 'pm1', chartId: 'pm1Chart' },
+                    { key: 'pm25', chartId: 'pm25Chart' },
+                    { key: 'pm10', chartId: 'pm10Chart' },
+                    { key: 'voc', chartId: 'vocChart' },
+                    { key: 'lux', chartId: 'luxChart' }
+                ];
+
+                chartsToUpdate.forEach(({ key, chartId }) => {
+                    const chart = window.chartInstances[chartId];
+                    if (!chart) return;
+
+                    const value = measurement[key];
+                    if (value === undefined || value === null) return;
+
+                    // Add timestamp to labels
+                    const timestamp = new Date(measurement.created_at).toLocaleTimeString('ro-RO');
+                    
+                    // Keep only last 100 data points for performance
+                    const maxDataPoints = 100;
+                    
+                    chart.data.labels.push(timestamp);
+                    chart.data.datasets[0].data.push(value);
+                    
+                    // Remove oldest data points if exceeding limit
+                    if (chart.data.labels.length > maxDataPoints) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+                    
+                    // Update chart
+                    chart.update('none'); // 'none' = no animation, just update
+                    
+                    console.log(`[Realtime] Updated chart: ${chartId}`);
+                });
+            }
+
+            /**
+             * Store chart instances globally for updates
+             */
+            registerChart(chartId, chartInstance) {
+                if (!window.chartInstances) {
+                    window.chartInstances = {};
+                }
+                window.chartInstances[chartId] = chartInstance;
+                console.log(`[Realtime] Registered chart: ${chartId}`);
+            }
+
+            /**
+             * Get in-memory history
+             */
+            getHistory() {
+                return this.measurements;
+            }
+
+            /**
+             * Clear in-memory history
+             */
+            clearHistory() {
+                this.measurements = [];
+                console.log('[Realtime] History cleared');
+            }
+
+            /**
+             * Show notification to user
+             */
+            showNotification(message, type = 'info') {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `alert alert-${type} alert-dismissible fade show`;
+                notification.role = 'alert';
+                notification.style.position = 'fixed';
+                notification.style.top = '20px';
+                notification.style.right = '20px';
+                notification.style.zIndex = '9999';
+                notification.style.minWidth = '300px';
+                notification.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+
+                document.body.appendChild(notification);
+
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            }
+
+            /**
+             * Disconnect from Realtime
+             */
+            disconnect() {
+                if (this.channel) {
+                    console.log('[Realtime] Disconnecting from Realtime...');
+                    this.client.removeChannel(this.channel);
+                    this.isConnected = false;
+                    console.log('[Realtime] ✅ Disconnected');
+                }
+            }
+
+            /**
+             * Reconnect to Realtime
+             */
+            async reconnect() {
+                console.log('[Realtime] Reconnecting...');
+                this.disconnect();
+                await this.connectToRealtime();
+            }
+        }
+
+        // Global instance
+        let realtimeManager = null;
+
+        /**
+         * Initialize Realtime when page loads
+         */
+        function initializeRealtime(supabaseUrl, supabaseKey, deviceId, userId) {
+            console.log('[Realtime] Initializing Supabase Realtime...');
+            
+            realtimeManager = new SupabaseRealtimeManager(
+                supabaseUrl,
+                supabaseKey,
+                deviceId,
+                userId
+            );
+            
+            realtimeManager.init();
+            
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                if (realtimeManager) {
+                    realtimeManager.disconnect();
+                }
+            });
+
+            // Cleanup when navigating away
+            window.addEventListener('pagehide', () => {
+                if (realtimeManager) {
+                    realtimeManager.disconnect();
+                }
+            });
+
+            return realtimeManager;
+        }
+
+        // CSS for pulse animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+            
+            .realtime-updating {
+                animation: pulse 0.5s ease-in-out;
+            }
+            
+            .realtime-status {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                margin-right: 5px;
+            }
+            
+            .realtime-status.connected {
+                background-color: #28a745;
+                animation: pulse 2s infinite;
+            }
+            
+            .realtime-status.disconnected {
+                background-color: #dc3545;
+            }
+        `;
+        document.head.appendChild(style);
+
+        console.log('[Realtime] Script loaded and ready');
+    </script>
+    
+    <script>
+        // Chart.js configuration
+        const chartConfig = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                },
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                },
+            },
+        };
+        
+        // Parse data from template
+        const data = {{ chart_data_json|safe }};
+        
+        // Helper function to create chart
+        function createChart(canvasId, label, dataArray, color, unitSuffix = '') {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.timestamps,
+                    datasets: [{
+                        label: label,
+                        data: dataArray,
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                    }]
+                },
+                options: {
+                    ...chartConfig,
+                    plugins: {
+                        ...chartConfig.plugins,
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return label + ': ' + context.parsed.y + unitSuffix;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Register chart for Realtime updates
+            if (typeof realtimeManager !== 'undefined' && realtimeManager) {
+                realtimeManager.registerChart(canvasId, chart);
+            }
+            
+            return chart;
+        }
+        
+        // Create all charts
+        createChart('temperatureChart', 'Temperatură', data.temperature, '#ff6b6b', '°C');
+        createChart('humidityChart', 'Umiditate', data.humidity, '#4ecdc4', '%');
+        createChart('pressureChart', 'Presiune', data.pressure, '#95a5a6', ' hPa');
+        createChart('co2Chart', 'CO₂', data.co2, '#f39c12', ' ppm');
+        createChart('pm1Chart', 'PM1.0', data.pm1, '#3498db', ' μg/m³');
+        createChart('pm25Chart', 'PM2.5', data.pm25, '#e74c3c', ' μg/m³');
+        createChart('pm10Chart', 'PM10', data.pm10, '#e67e22', ' μg/m³');
+        createChart('luxChart', 'Lux', data.lux, '#f1c40f', ' lux');
+        createChart('vocChart', 'VOC', data.voc, '#9b59b6', ' ppb');
+        
+        // Add click handlers to charts - open detail pages
+        const deviceId = '{{ device.device_id }}';
+        const chartClickMap = {
+            'temperatureChart': '/measurements/device/' + deviceId + '/temperatura/',
+            'humidityChart': '/measurements/device/' + deviceId + '/umiditate/',
+            'pressureChart': '/measurements/device/' + deviceId + '/presiune/',
+            'co2Chart': '/measurements/device/' + deviceId + '/co2/',
+            'pm1Chart': '/measurements/device/' + deviceId + '/pm1/',
+            'pm25Chart': '/measurements/device/' + deviceId + '/pm25/',
+            'pm10Chart': '/measurements/device/' + deviceId + '/pm10/',
+            'luxChart': '/measurements/device/' + deviceId + '/lux/',
+            'vocChart': '/measurements/device/' + deviceId + '/voc/',
+        };
+        
+        Object.keys(chartClickMap).forEach(chartId => {
+            const canvas = document.getElementById(chartId);
+            if (canvas) {
+                canvas.style.cursor = 'pointer';
+                canvas.addEventListener('click', function() {
+                    window.location.href = chartClickMap[chartId];
+                });
+            }
+        });
+        
+        // Initialize Supabase Realtime when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const supabaseUrl = '{{ supabase_url }}';
+            const supabaseKey = '{{ supabase_key }}';
+            const deviceId = '{{ device.device_id }}';
+            const userId = '{{ user_id }}';
+            
+            console.log('[Dashboard] Initializing Realtime with:', { deviceId, userId });
+            
+            if (supabaseUrl && supabaseKey && deviceId && userId) {
+                window.realtimeManager = initializeRealtime(supabaseUrl, supabaseKey, deviceId, userId);
+            } else {
+                console.warn('[Dashboard] Missing Supabase credentials or device info');
+            }
+        });
+    </script>
+{% endblock %}
+{% endblock %}

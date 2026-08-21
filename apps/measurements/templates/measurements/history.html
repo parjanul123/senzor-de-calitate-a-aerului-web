@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Istoric masuratori</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+  <main class="container py-4 py-md-5">
+    <header class="d-flex justify-content-between align-items-baseline mb-4">
+      <div><p class="text-uppercase text-secondary small mb-1">Monitorizare</p><h1 class="h2 mb-0">Istoric masuratori</h1></div>
+      <a class="btn btn-outline-secondary" href="{% url 'measurements:charts' %}">Grafice</a>
+    </header>
+    {% if measurements is None %}
+      <div class="alert alert-danger" role="alert">Datele din tabela measurements nu pot fi citite momentan.</div>
+    {% elif not measurements.recent %}
+      <div class="alert alert-secondary" role="alert">Nu exista masuratori disponibile.</div>
+    {% else %}
+      <div class="table-responsive bg-white border rounded-3">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light"><tr>{% for column in measurements.columns %}<th scope="col">{{ column }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for measurement in measurements.recent %}<tr>{% for value in measurement.values %}<td>{{ value|default_if_none:"-" }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>

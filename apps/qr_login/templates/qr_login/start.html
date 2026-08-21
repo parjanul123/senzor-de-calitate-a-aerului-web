@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conectare prin QR - Calitate Sensor</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .qr-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      max-width: 360px;
+      padding: 40px;
+      text-align: center;
+    }
+    .qr-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1a1a1a;
+    }
+    .qr-subtitle {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 32px;
+    }
+    .qr-code-box {
+      background: #f5f5f5;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qr-code-box img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .countdown {
+      font-size: 13px;
+      color: #999;
+      margin-top: 16px;
+    }
+    .countdown .time {
+      font-weight: 600;
+      color: #667eea;
+    }
+    .status-message {
+      font-size: 14px;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+    }
+    .status-message.show {
+      display: block;
+    }
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .status-message.waiting {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #667eea;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error-details {
+      font-size: 12px;
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="qr-container">
+    <h1 class="qr-title">Conectare prin QR</h1>
+    <p class="qr-subtitle">Deschide aplicația Android și scanează codul de mai jos</p>
+    
+    {% if error %}
+      <div class="status-message error show">
+        <strong>Eroare:</strong> {{ error }}
+      </div>
+    {% else %}
+      <div class="qr-code-box">
+        <img id="qr-code" src="{{ qr_image }}" alt="Cod QR pentru conectare" width="260" height="260">
+      </div>
+      
+      <div class="countdown">
+        Codul expira în <span class="time" id="countdown">60</span> secunde
+      </div>
+      
+      <div id="status-message" class="status-message">
+        <span id="status-text"></span>
+        <div id="status-error-details" class="error-details"></div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Django CSRF token (hidden form for token generation) -->
+  <form id="csrf-form" style="display:none;">
+    {% csrf_token %}
+  </form>
+
+  <!-- Bootstrap JavaScript Bundle (MUST load BEFORE any code that uses bootstrap.Modal) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Supabase client for Realtime -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Pass data via data attributes for JavaScript -->
+  <script>
+    const REQUEST_ID = "{{ request_id }}".trim();
+    const SUPABASE_URL = "{{ supabase_url }}".trim();
+    const SUPABASE_ANON_KEY = "{{ supabase_anon_key }}".trim();
+    const EXPIRES_AT = "{{ expires_at }}".trim();
+    
+    // Debug: Log configuration with detailed info
+    console.log("=== 🔧 QR Login Configuration ===");
+    console.log("REQUEST_ID:", REQUEST_ID);
+    console.log("  - Empty?", !REQUEST_ID);
+    console.log("  - Length:", REQUEST_ID.length);
+    console.log("SUPABASE_URL:", SUPABASE_URL);
+    console.log("  - Empty?", !SUPABASE_URL);
+    console.log("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? "***set*** (length: " + SUPABASE_ANON_KEY.length + ")" : "(empty)");
+    console.log("EXPIRES_AT:", EXPIRES_AT);
+  </script>
+
+  <!-- Main QR Login logic - runs AFTER Bootstrap is loaded -->
+  <script>
+    // Wait for Bootstrap to be available
+    if (typeof bootstrap === 'undefined') {
+      console.error("❌ Bootstrap not loaded yet, waiting for it...");
+      // Retry check every 100ms
+      var bootstrapCheckInterval = setInterval(function() {
+        if (typeof bootstrap !== 'undefined') {
+          console.log("✅ Bootstrap is now available, initializing QR login...");
+          clearInterval(bootstrapCheckInterval);
+          initializeQRLogin();
+        }
+      }, 100);
+      
+      // Timeout after 5 seconds
+      setTimeout(function() {
+        if (typeof bootstrap === 'undefined') {
+          console.error("❌ Bootstrap failed to load after 5 seconds!");
+          clearInterval(bootstrapCheckInterval);
+        }
+      }, 5000);
+    } else {
+      console.log("✅ Bootstrap is available, initializing QR login immediately...");
+      initializeQRLogin();
+    }
+    
+    function initializeQRLogin() {
+    const messageEl = document.getElementById("status-message");
+    const messageTextEl = document.getElementById("status-text");
+    const countdownEl = document.getElementById("countdown");
+    let secondsRemaining = 60;
+    let completed = false;
+    let pollingInterval = null;
+
+    function showMessage(text, type = "waiting") {
+      messageTextEl.innerHTML = text;
+      messageEl.className = `status-message show ${type}`;
+    }
+
+    function hideMessage() {
+      messageEl.classList.remove("show");
+    }
+
+    function startCountdown() {
+      const timer = setInterval(() => {
+        secondsRemaining--;
+        countdownEl.textContent = secondsRemaining;
+        
+        if (secondsRemaining <= 0) {
+          clearInterval(timer);
+          if (!completed) {
+            showMessage("⏱️ Codul a expirat. Reîncarcă pagina pentru a genera un nou cod.", "error");
+            stopPolling();
+          }
+        }
+      }, 1000);
+    }
+
+    function stopPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }
+
+    async function checkStatus() {
+      try {
+        console.log("🔍 [checkStatus] Polling for approval...");
+        console.log("   REQUEST_ID:", REQUEST_ID);
+        
+        const response = await fetch("{% url 'qr_login:check_status' %}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify({ request_id: REQUEST_ID }),
+        });
+
+        console.log("📡 [checkStatus] Response status:", response.status);
+        
+        const data = await response.json();
+        console.log("📦 [checkStatus] Response data:", JSON.stringify(data, null, 2));
+
+        if (!response.ok) {
+          console.error("❌ [checkStatus] Error:", data.error, "(HTTP", response.status + ")");
+          return;
+        }
+
+        console.log("✅ [checkStatus] Success");
+        console.log("   Status:", data.status);
+        console.log("   User ID:", data.user_id);
+        console.log("   Expired:", data.expired);
+
+        // Check if expired on server
+        if (data.expired) {
+          stopPolling();
+          if (!completed) {
+            console.log("⏱️ [checkStatus] QR code expired");
+            showMessage("⏱️ Codul a expirat.", "error");
+          }
+          return;
+        }
+
+        // Check if approved - if so, show confirmation dialog
+        if (data.status === "approved" && data.user_id) {
+          console.log("✅ [checkStatus] APPROVAL DETECTED! Status=approved, User ID:", data.user_id);
+          console.log("   Username:", data.username);
+          console.log("   Type of data.status:", typeof data.status);
+          console.log("   data.status === 'approved':", data.status === "approved");
+          console.log("   data.user_id:", data.user_id);
+          console.log("   data.user_id truthy:", !!data.user_id);
+          
+          // Show confirmation dialog with username
+          showApprovalDialog(data.username, data.user_id);
+          return;
+        }
+
+        // Still pending
+        if (data.status === "pending") {
+          console.log("⏳ [checkStatus] Still waiting for approval...");
+        }
+      } catch (error) {
+        console.error("❌ [checkStatus] Exception:", error);
+        console.error("   Message:", error.message);
+        console.error("   Stack:", error.stack);
+      }
+    }
+
+    function showApprovalDialog(username, userId) {
+      console.log("🔔 [showApprovalDialog] Showing dialog for username:", username);
+      
+      // Stop polling while showing dialog
+      stopPolling();
+      
+      // Get username display text
+      const displayName = username || "Necunoscut";
+      const message = `<strong>Vrei să te conectezi la profilul:</strong><br><span style="font-size: 1.2em; color: #0066cc;">${displayName}</span>`;
+      
+      // Create dialog HTML
+      const dialogHTML = `
+        <div class="modal fade" id="approvalModal" tabindex="-1" role="dialog" aria-labelledby="approvalModalLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="approvalModalLabel">✅ Aprobare primită</h5>
+              </div>
+              <div class="modal-body">
+                ${message}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="declineBtn" data-dismiss="modal">Anulare</button>
+                <button type="button" class="btn btn-primary" id="confirmBtn">De acord</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Check if modal already exists, if so remove it
+      const existingModal = document.getElementById("approvalModal");
+      if (existingModal) {
+        existingModal.remove();
+      }
+      
+      // Add modal to document
+      document.body.insertAdjacentHTML("beforeend", dialogHTML);
+      
+      // Get references to buttons
+      const confirmBtn = document.getElementById("confirmBtn");
+      const declineBtn = document.getElementById("declineBtn");
+      const modal = document.getElementById("approvalModal");
+      
+      // Show modal
+      const bsModal = new bootstrap.Modal(modal, { backdrop: "static", keyboard: false });
+      bsModal.show();
+      
+      console.log("   Dialog shown, waiting for user response...");
+      
+      // Handle confirm button
+      confirmBtn.addEventListener("click", function() {
+        console.log("✅ [showApprovalDialog] User confirmed, proceeding with login");
+        bsModal.hide();
+        setTimeout(() => {
+          modal.remove();
+          completeLogin();
+        }, 300);
+      });
+      
+      // Handle decline button
+      declineBtn.addEventListener("click", function() {
+        console.log("❌ [showApprovalDialog] User declined");
+        bsModal.hide();
+        setTimeout(() => {
+          modal.remove();
+          showMessage("❌ Conectare anulată.", "error");
+          // Resume polling if needed
+          startPolling();
+        }, 300);
+      });
+      
+      // Handle modal close via X button or ESC (disabled, but just in case)
+      modal.addEventListener("hidden.bs.modal", function() {
+        console.log("⚠️ [showApprovalDialog] Modal closed without explicit button");
+      });
+    }
+
+    async function completeLogin() {
+      if (completed) {
+        console.log("⚠️ [completeLogin] Already completed, ignoring duplicate call");
+        return;
+      }
+      
+      completed = true;
+      stopPolling();
+
+      console.log("🎯 [completeLogin] Starting login completion...");
+      console.log("   REQUEST_ID:", REQUEST_ID);
+      showMessage('<span class="spinner"></span>Conectare finalizată...', "waiting");
+
+      try {
+        console.log("📤 [completeLogin] Sending POST /qr-login/complete/");
+        const response = await fetch("{% url 'qr_login:complete' %}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify({ request_id: REQUEST_ID }),
+        });
+
+        console.log("📡 [completeLogin] Response status:", response.status);
+        console.log("   Headers:", Array.from(response.headers.entries()).map(h => h[0] + ": " + h[1]).join(", "));
+
+        const data = await response.json();
+        console.log("📦 [completeLogin] Response body:", JSON.stringify(data, null, 2));
+
+        if (!response.ok) {
+          completed = false;
+          const errorMsg = data.error || "Unknown error";
+          console.error("❌ [completeLogin] Error (HTTP", response.status + "):", errorMsg);
+          showMessage(`Eroare: ${errorMsg}`, "error");
+          return;
+        }
+
+        console.log("✅ [completeLogin] Success response received");
+        console.log("   Success:", data.success);
+        console.log("   Redirect:", data.redirect);
+
+        if (data.success) {
+          console.log("🎉 [completeLogin] Redirecting to:", data.redirect || "/dashboard/");
+          showMessage("✅ Conectare confirmată! Redirecționare...", "success");
+          
+          const redirectUrl = data.redirect || "/dashboard/";
+          console.log("   Setting window.location.href =", redirectUrl);
+          console.log("   Checking cookies before redirect...");
+          console.log("   document.cookie =", document.cookie);
+          
+          setTimeout(() => {
+            console.log("   [TIMEOUT CALLBACK] Executing redirect now...");
+            console.log("   window.location.href =", window.location.href);
+            console.log("   window.location.pathname =", window.location.pathname);
+            console.log("   Executing: window.location.href = '" + redirectUrl + "'");
+            
+            // Execute redirect
+            window.location.href = redirectUrl;
+            
+            console.log("   [AFTER REDIRECT] This line may not execute if redirect works");
+            console.log("   Redirect command executed (or navigating)");
+          }, 1500);
+        } else {
+          completed = false;
+          console.error("❌ [completeLogin] Response success=false");
+          showMessage("Eroare: Success=false", "error");
+        }
+      } catch (error) {
+        completed = false;
+        console.error("❌ [completeLogin] Exception:", error);
+        console.error("   Message:", error.message);
+        console.error("   Stack:", error.stack);
+        showMessage(`Eroare: ${error.message}`, "error");
+      }
+    }
+
+    function getCsrfToken() {
+      // Method 1: Look for hidden input from {% csrf_token %} form
+      const csrfInput = document.querySelector('[name="csrfmiddlewaretoken"]');
+      if (csrfInput) {
+        const token = csrfInput.value;
+        if (token) {
+          console.debug("✅ [CSRF] Token found from DOM input: " + token.substring(0, 20) + "...");
+          return token;
+        }
+      }
+      
+      // Method 2: Look in meta tag
+      const metaTag = document.querySelector('[name="csrf-token"]');
+      if (metaTag) {
+        const token = metaTag.getAttribute('content');
+        if (token) {
+          console.debug("✅ [CSRF] Token found from meta tag: " + token.substring(0, 20) + "...");
+          return token;
+        }
+      }
+      
+      // Method 3: Look in cookies
+      const name = "csrftoken";
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === name + "=") {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      
+      if (cookieValue) {
+        console.debug("✅ [CSRF] Token found from cookie: " + cookieValue.substring(0, 20) + "...");
+        return cookieValue;
+      }
+      
+      // No token found
+      console.error("❌ [CSRF] No CSRF token found! Checking available methods...");
+      console.log("   - DOM input [name='csrfmiddlewaretoken']:", csrfInput ? "found but empty" : "NOT FOUND");
+      console.log("   - Meta tag [name='csrf-token']:", metaTag ? "found but empty" : "NOT FOUND");
+      console.log("   - Cookie 'csrftoken':", cookieValue ? "found" : "NOT FOUND");
+      console.log("   - All cookies:", document.cookie || "(none)");
+      
+      return null;
+    }
+
+    // Start countdown
+    startCountdown();
+
+    // Check status every 2 seconds (polling - PRIMARY detection mechanism)
+    showMessage('<span class="spinner"></span>Se așteaptă scanarea codului QR...', "waiting");
+    console.log("🚀 Starting QR login flow...");
+    
+    // Start polling immediately - this is the main detection mechanism
+    console.log("✅ Starting polling immediately (every 2 seconds)");
+    pollingInterval = setInterval(checkStatus, 2000);
+    
+    // Also try Realtime if configured
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && REQUEST_ID) {
+      console.log("🔄 Attempting Realtime connection (as secondary mechanism)...");
+      try {
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Subscribe to real-time changes on web_login_requests table
+        const channel = supabase
+          .channel(`web_login_${REQUEST_ID}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "web_login_requests",
+              filter: `id=eq.${REQUEST_ID}`,
+            },
+            (payload) => {
+              console.log("✅ Realtime update received:", payload);
+              // When status changes to "approved", check and complete login
+              if (payload.new.status === "approved" && payload.new.user_id) {
+                console.log("🎉 QR approved! User ID:", payload.new.user_id);
+                completeLogin();
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log("Realtime subscription status:", status);
+            if (status === "SUBSCRIBED") {
+              console.log("✅ Realtime subscribed successfully");
+              // Start polling as fallback (2 second intervals)
+              if (!pollingInterval) {
+                pollingInterval = setInterval(checkStatus, 2000);
+              }
+            } else if (status === "CHANNEL_ERROR") {
+              console.warn("⚠️  Realtime channel error, using polling only");
+              if (!pollingInterval) {
+                pollingInterval = setInterval(checkStatus, 2000);
+              }
+            }
+          });
+
+        // Cleanup on page unload
+        window.addEventListener("beforeunload", () => {
+          if (pollingInterval) clearInterval(pollingInterval);
+          supabase.removeChannel(channel);
+        });
+      } catch (error) {
+        console.error("❌ Realtime setup error:", error);
+        // Fall back to polling only
+        if (!pollingInterval) {
+          pollingInterval = setInterval(checkStatus, 2000);
+        }
+      }
+    } else {
+      console.error("❌ Missing Supabase configuration");
+      console.log("REQUEST_ID:", REQUEST_ID);
+      console.log("SUPABASE_URL:", SUPABASE_URL);
+      console.log("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? "***set***" : "missing");
+      showMessage("❌ Configurația Supabase lipsește", "error");
+    }
+    
+    // Always start polling immediately as primary detection mechanism
+    if (!pollingInterval && SUPABASE_URL && SUPABASE_ANON_KEY && REQUEST_ID) {
+      console.log("Starting polling immediately...");
+      pollingInterval = setInterval(checkStatus, 2000);
+    }
+    } // END of initializeQRLogin()
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grafice masuratori</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+  <main class="container py-4 py-md-5">
+    <header class="d-flex justify-content-between align-items-baseline mb-4">
+      <div><p class="text-uppercase text-secondary small mb-1">Monitorizare</p><h1 class="h2 mb-0">Grafice masuratori</h1></div>
+      <a class="btn btn-outline-secondary" href="{% url 'measurements:history' %}">Istoric</a>
+    </header>
+    <div id="chart-error" class="alert alert-danger d-none" role="alert"></div>
+    <div class="row g-4" id="charts">
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">Temperatura</h2><canvas id="temperature"></canvas></div></div>
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">Umiditate</h2><canvas id="humidity"></canvas></div></div>
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">Presiune</h2><canvas id="pressure"></canvas></div></div>
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">CO2</h2><canvas id="co2"></canvas></div></div>
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">PM2.5</h2><canvas id="pm25"></canvas></div></div>
+      <div class="col-md-6"><div class="bg-white border rounded-3 p-3"><h2 class="h5">PM10</h2><canvas id="pm10"></canvas></div></div>
+    </div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script>
+    const labels = { temperature: "Temperatura", humidity: "Umiditate", pressure: "Presiune", co2: "CO2", pm25: "PM2.5", pm10: "PM10" };
+    fetch("{% url 'measurements:chart_data' %}")
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(({ labels: timestamps, datasets }) => Object.entries(labels).forEach(([metric, label]) => {
+        const canvas = document.getElementById(metric);
+        if (!datasets[metric]) { canvas.closest(".col-md-6").classList.add("d-none"); return; }
+        new Chart(canvas, { type: "line", data: { labels: timestamps, datasets: [{ label, data: datasets[metric], borderColor: "#0d6efd", backgroundColor: "rgba(13, 110, 253, .12)", tension: .25 }] }, options: { responsive: true, maintainAspectRatio: true } });
+      }))
+      .catch(() => { const error = document.getElementById("chart-error"); error.textContent = "Datele pentru grafice nu pot fi citite momentan."; error.classList.remove("d-none"); });
+  </script>
+</body>
+</html>
