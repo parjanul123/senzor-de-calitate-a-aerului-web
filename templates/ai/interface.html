@@ -121,6 +121,12 @@
                         </p>
 
                         <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label" for="prediction-device-select">Dispozitiv</label>
+                                <select id="prediction-device-select" class="form-select ai-operation-device-select">
+                                    <option value="">Selectează un dispozitiv...</option>
+                                </select>
+                            </div>
                             <div class="col-sm-6">
                                 <label class="form-label" for="forecast-horizon">Orizont prognoză</label>
                                 <select id="forecast-horizon" class="form-select">
@@ -181,6 +187,13 @@
                         <p class="text-muted">
                             Automatically detect unusual patterns or sensor malfunctions in your data.
                         </p>
+
+                        <div class="mb-4">
+                            <label class="form-label" for="anomaly-device-select">Dispozitiv</label>
+                            <select id="anomaly-device-select" class="form-select ai-operation-device-select">
+                                <option value="">Selectează un dispozitiv...</option>
+                            </select>
+                        </div>
                         
                         <button id="anomaly-button" class="btn btn-lg btn-warning w-100 mb-4">
                             <i class="bi bi-search"></i> Detect Anomalies
@@ -222,6 +235,12 @@
                         
                         <!-- Training Configuration -->
                         <div class="row mb-4">
+                            <div class="col-12">
+                                <label class="form-label" for="training-device-select">Dispozitiv</label>
+                                <select id="training-device-select" class="form-select ai-operation-device-select">
+                                    <option value="">Selectează un dispozitiv...</option>
+                                </select>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Perioada de agregare</label>
                                 <div class="row g-2">
@@ -422,6 +441,6 @@
 </style>
 
 <!-- Include AI Interface Manager -->
-<script src="{% static 'js/ai-interface-manager.js' %}?v=13"></script>
+<script src="{% static 'js/ai-interface-manager.js' %}?v=14"></script>
 
 {% endblock %}

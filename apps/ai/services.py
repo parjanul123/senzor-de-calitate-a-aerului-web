@@ -1,8 +1,14 @@
 class AIService:
     """Stable integration boundary for the future external AI API."""
 
-    def train(self):
-        return {"status": "queued", "job_id": "mock-training-job", "mock": True}
+    def train(self, payload):
+        return {
+            "status": "queued",
+            "job_id": "mock-training-job",
+            "device_id": payload.get("device_id"),
+            "input": payload,
+            "mock": True,
+        }
 
     def predict(self, payload):
         return {

@@ -113,6 +113,7 @@ class AIInterfaceManager {
 
     getPredictionPayload(measurement, algorithm) {
         return {
+            device_id: this.currentDevice,
             temperature: this.normalizePredictionValue(measurement.temperatura, -50, 60, 20),
             humidity: this.normalizePredictionValue(measurement.umiditate, 0, 100, 50),
             pm25: this.normalizePredictionValue(measurement.pm25, 0, 500, 0),
@@ -352,7 +353,8 @@ class AIInterfaceManager {
                 .join(',');
             try {
                 const forecast = await this.postAI(
-                    `${API_CONFIG.ENDPOINTS.ai.predict}?algorithm=${encodeURIComponent(algorithm)}&include_forecast=true&forecast_horizons=${encodeURIComponent(forecastHorizons)}`
+                    `${API_CONFIG.ENDPOINTS.ai.predict}?algorithm=${encodeURIComponent(algorithm)}&include_forecast=true&forecast_horizons=${encodeURIComponent(forecastHorizons)}`,
+                    { device_id: this.currentDevice }
                 );
                 prediction.forecast = forecast.forecast;
             } catch (error) {
@@ -605,7 +607,9 @@ class AIInterfaceManager {
         uiManager.showLoading('Detecting anomalies...');
         
         try {
-            const anomalies = await this.postAI(API_CONFIG.ENDPOINTS.ai.anomaly);
+            const anomalies = await this.postAI(API_CONFIG.ENDPOINTS.ai.anomaly, {
+                device_id: this.currentDevice
+            });
             
             uiManager.hideLoading();
             
@@ -747,6 +751,7 @@ class AIInterfaceManager {
         
         try {
             const payload = {
+                device_id: this.currentDevice,
                 dataset_name: this.currentDevice,
                 notes: `Antrenare ${model} solicitata din interfata web cu agregare la ${interval}.`,
                 training_model: model,
@@ -938,22 +943,25 @@ class AIInterfaceManager {
      */
     setupDeviceSelector() {
         this.loadDevices();
-        
-        const deviceSelect = document.getElementById('ai-device-select');
-        if (deviceSelect) {
+
+        this.getDeviceSelectors().forEach((deviceSelect) => {
             deviceSelect.addEventListener('change', (e) => {
                 this.currentDevice = e.target.value;
                 this.onDeviceChanged();
             });
-        }
+        });
+    }
+
+    getDeviceSelectors() {
+        return Array.from(document.querySelectorAll('#ai-device-select, .ai-operation-device-select'));
     }
     
     /**
      * Load devices into selector
      */
     async loadDevices() {
-        const deviceSelect = document.getElementById('ai-device-select');
-        if (!deviceSelect) return;
+        const deviceSelectors = this.getDeviceSelectors();
+        if (deviceSelectors.length === 0) return;
         
         try {
             const response = await fetch('/ai/devices/', { credentials: 'same-origin' });
@@ -962,17 +970,18 @@ class AIInterfaceManager {
             }
             const { devices } = await response.json();
             
-            deviceSelect.innerHTML = '<option value="">Select a device...</option>';
-            devices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.id;
-                option.textContent = device.name || device.id;
-                deviceSelect.appendChild(option);
+            deviceSelectors.forEach((deviceSelect) => {
+                deviceSelect.innerHTML = '<option value="">Selectează un dispozitiv...</option>';
+                devices.forEach((device) => {
+                    const option = document.createElement('option');
+                    option.value = device.id;
+                    option.textContent = device.name || device.id;
+                    deviceSelect.appendChild(option);
+                });
             });
-            
+
             // Auto-select first device if available
             if (devices.length > 0) {
-                deviceSelect.value = devices[0].id;
                 this.currentDevice = devices[0].id;
                 this.onDeviceChanged();
             }
@@ -988,6 +997,10 @@ class AIInterfaceManager {
      * Handle device selection change
      */
     onDeviceChanged() {
+        this.getDeviceSelectors().forEach((deviceSelect) => {
+            deviceSelect.value = this.currentDevice || '';
+        });
+
         const deviceInfo = document.getElementById('ai-device-info');
         if (deviceInfo && this.currentDevice) {
             deviceInfo.innerHTML = `<small class="text-muted">Selected: ${this.currentDevice}</small>`;

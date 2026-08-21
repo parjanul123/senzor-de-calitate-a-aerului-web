@@ -47,8 +47,11 @@ def _json_payload(request):
 
 
 @require_POST
-def train(_request):
-    return JsonResponse(AIService().train())
+def train(request):
+    payload = _json_payload(request)
+    if payload is None:
+        return JsonResponse({"detail": "JSON invalid."}, status=400)
+    return JsonResponse(AIService().train(payload))
 
 
 @require_POST

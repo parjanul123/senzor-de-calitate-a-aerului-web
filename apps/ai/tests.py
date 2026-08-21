@@ -8,15 +8,26 @@ from apps.ai.views import user_devices
 
 
 class AIMockEndpointTests(SimpleTestCase):
+    def test_train_preserves_selected_device(self):
+        response = self.client.post(
+            reverse("ai:train"),
+            data=json.dumps({"device_id": "sensor-1"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["device_id"], "sensor-1")
+
     def test_predict_returns_mock_data(self):
         response = self.client.post(
             reverse("ai:predict"),
-            data=json.dumps({"temperature": 24}),
+            data=json.dumps({"device_id": "sensor-1", "temperature": 24}),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["mock"])
+        self.assertEqual(response.json()["input"]["device_id"], "sensor-1")
 
     def test_chat_returns_mock_data(self):
         response = self.client.post(
