@@ -11,6 +11,60 @@ from apps.devices.services import get_user_devices, get_device_detail
 from config.supabase_client import get_service
 
 
+STANDARD_LIMITS = [
+    {"label": "PM2.5", "minimum": 0, "maximum": 12, "unit": "μg/m³"},
+    {"label": "PM10", "minimum": 0, "maximum": 54, "unit": "μg/m³"},
+    {"label": "CO2", "minimum": 0, "maximum": 1000, "unit": "ppm"},
+    {"label": "VOC", "minimum": 0, "maximum": 220, "unit": "ppb"},
+]
+
+PARAMETERS = [
+    ("temperatura", "Temperatura", "°C"),
+    ("umiditate", "Umiditate", "%"),
+    ("co2", "CO2", "ppm"),
+    ("pm25", "PM2.5", "μg/m³"),
+    ("pm10", "PM10", "μg/m³"),
+    ("voc", "VOC", "ppb"),
+]
+
+PARAMETER_DETAILS = {key: {"label": label, "unit": unit} for key, label, unit in PARAMETERS}
+
+
+def empty_profile_form():
+    """Provide one independently editable threshold pair for every sensor parameter."""
+    return {"profile_name": "", "notes": "", "thresholds": {key: {"minimum": "", "maximum": ""} for key, _, _ in PARAMETERS}}
+
+
+def parse_profile_form(request):
+    """Validate any supplied min/max pairs and retain blank parameters as unset."""
+    form_data = {
+        "profile_name": request.POST.get("profile_name", "").strip(),
+        "notes": request.POST.get("notes", "").strip(),
+        "thresholds": {},
+    }
+    if not form_data["profile_name"]:
+        raise ValueError("Introdu un nume pentru profil.")
+
+    thresholds = {}
+    for parameter, _, _ in PARAMETERS:
+        minimum = request.POST.get(f"minimum_{parameter}", "").strip()
+        maximum = request.POST.get(f"maximum_{parameter}", "").strip()
+        form_data["thresholds"][parameter] = {"minimum": minimum, "maximum": maximum}
+        if not minimum and not maximum:
+            continue
+        if not minimum or not maximum:
+            raise ValueError(f"Completeaza ambele praguri pentru {PARAMETER_DETAILS[parameter]['label']}.")
+        minimum_value = float(minimum)
+        maximum_value = float(maximum)
+        if minimum_value >= maximum_value:
+            raise ValueError(f"Pragul minim trebuie sa fie mai mic decat pragul maxim pentru {PARAMETER_DETAILS[parameter]['label']}.")
+        thresholds[parameter] = {"minimum": minimum_value, "maximum": maximum_value}
+
+    if not thresholds:
+        raise ValueError("Seteaza cel putin un prag pentru un parametru.")
+    return form_data, thresholds
+
+
 @require_http_methods(["GET"])
 def devices(request):
     """List all devices for the authenticated user."""
@@ -32,7 +86,7 @@ def devices(request):
 
 @require_http_methods(["GET", "POST"])
 def transport_profile(request, device_id):
-    """Configure client-owned temperature limits for a device's cargo."""
+    """List and configure standard or custom parameter profiles for a device."""
     user_id = request.session.get("supabase_user_id")
     if not user_id:
         return redirect("qr_login:start")
@@ -47,73 +101,96 @@ def transport_profile(request, device_id):
             status=404,
         )
 
-    profile = supabase.get_transport_profile(device_id, user_id)
-    form_data = {
-        "profile_name": (profile or {}).get("profile_name", ""),
-        "cargo_name": (profile or {}).get("cargo_name", ""),
-        "minimum_temperature": (profile or {}).get("minimum_temperature", ""),
-        "maximum_temperature": (profile or {}).get("maximum_temperature", ""),
-        "notes": (profile or {}).get("notes", ""),
-    }
+    profiles = supabase.get_transport_profiles(device_id, user_id)
+    standard_active = not any(profile.get("is_active") for profile in profiles)
+    editing_profile = next((profile for profile in profiles if str(profile.get("id")) == request.GET.get("edit")), None)
+    form_data = empty_profile_form()
+    if editing_profile:
+        form_data["profile_name"] = editing_profile.get("profile_name", "")
+        form_data["notes"] = editing_profile.get("notes", "")
+        for parameter, threshold in editing_profile.get("thresholds", {}).items():
+            if parameter in form_data["thresholds"]:
+                form_data["thresholds"][parameter] = threshold
+
+    def page_context(**extra):
+        for profile in profiles:
+            profile["threshold_items"] = [
+                {"label": PARAMETER_DETAILS[key]["label"], "unit": PARAMETER_DETAILS[key]["unit"], **value}
+                for key, value in profile.get("thresholds", {}).items() if key in PARAMETER_DETAILS
+            ]
+        parameter_fields = [
+            {
+                "key": key,
+                "label": label,
+                "unit": unit,
+                "minimum": form_data["thresholds"].get(key, {}).get("minimum", ""),
+                "maximum": form_data["thresholds"].get(key, {}).get("maximum", ""),
+            }
+            for key, label, unit in PARAMETERS
+        ]
+        return {
+            "device": device, "form_data": form_data, "profiles": profiles,
+            "standard_limits": STANDARD_LIMITS, "parameters": PARAMETERS,
+            "parameter_fields": parameter_fields, "editing_profile": editing_profile,
+            "standard_active": standard_active, **extra,
+        }
 
     if request.method == "POST":
-        form_data = {
-            "profile_name": request.POST.get("profile_name", "").strip(),
-            "cargo_name": request.POST.get("cargo_name", "").strip(),
-            "minimum_temperature": request.POST.get("minimum_temperature", "").strip(),
-            "maximum_temperature": request.POST.get("maximum_temperature", "").strip(),
-            "notes": request.POST.get("notes", "").strip(),
-        }
+        action = request.POST.get("action", "create")
+        if action == "activate":
+            success = supabase.activate_transport_profile(device_id, request.POST.get("profile_id", ""), user_id)
+            return redirect("devices:transport_profile", device_id=device_id) if success else render(request, "devices/transport_profile.html", page_context(error="Profilul nu a putut fi activat."), status=400)
+        if action == "activate_standard":
+            success = supabase.activate_standard_transport_profile(device_id, user_id)
+            return redirect("devices:transport_profile", device_id=device_id) if success else render(request, "devices/transport_profile.html", page_context(error="Profilul Standard nu a putut fi activat."), status=400)
+        if action == "delete":
+            success = supabase.delete_transport_profile(device_id, request.POST.get("profile_id", ""), user_id)
+            return redirect("devices:transport_profile", device_id=device_id) if success else render(request, "devices/transport_profile.html", page_context(error="Profilul nu a putut fi sters."), status=400)
         try:
-            minimum_temperature = float(form_data["minimum_temperature"])
-            maximum_temperature = float(form_data["maximum_temperature"])
-            if not form_data["profile_name"]:
-                raise ValueError("Introdu un nume pentru profil.")
-            if not form_data["cargo_name"]:
-                raise ValueError("Introdu marfa transportata.")
-            if not -50 <= minimum_temperature <= 80 or not -50 <= maximum_temperature <= 80:
-                raise ValueError("Temperaturile trebuie sa fie intre -50 si 80 °C.")
-            if minimum_temperature >= maximum_temperature:
-                raise ValueError("Temperatura minima trebuie sa fie mai mica decat temperatura maxima.")
+            form_data, thresholds = parse_profile_form(request)
         except ValueError as error:
-            return render(
-                request,
-                "devices/transport_profile.html",
-                {"device": device, "form_data": form_data, "error": str(error)},
-                status=400,
-            )
+            return render(request, "devices/transport_profile.html", page_context(error=str(error)), status=400)
 
-        saved_profile = supabase.save_transport_profile(
-            device_id,
-            user_id,
-            form_data["profile_name"],
-            form_data["cargo_name"],
-            minimum_temperature,
-            maximum_temperature,
-            form_data["notes"],
-        )
+        if action == "edit":
+            saved_profile = supabase.update_transport_profile(device_id, request.POST.get("profile_id", ""), user_id, form_data["profile_name"], thresholds, form_data["notes"])
+        else:
+            saved_profile = supabase.save_transport_profile(device_id, user_id, form_data["profile_name"], thresholds, form_data["notes"])
         if not saved_profile:
             return render(
                 request,
                 "devices/transport_profile.html",
-                {"device": device, "form_data": form_data, "error": "Profilul nu a putut fi salvat."},
-                status=500,
+                page_context(error="Supabase blocheaza modificarea prin politica RLS pentru tabela profiles. Verifica politicile INSERT, UPDATE si DELETE."), status=403,
             )
-        profile = saved_profile
-        form_data = {
-            "profile_name": profile.get("profile_name", ""),
-            "cargo_name": profile.get("cargo_name", ""),
-            "minimum_temperature": profile.get("minimum_temperature", ""),
-            "maximum_temperature": profile.get("maximum_temperature", ""),
-            "notes": profile.get("notes", ""),
-        }
-        return render(
-            request,
-            "devices/transport_profile.html",
-            {"device": device, "form_data": form_data, "success": "Profilul de transport a fost salvat."},
-        )
+        return redirect("devices:transport_profile", device_id=device_id)
 
-    return render(request, "devices/transport_profile.html", {"device": device, "form_data": form_data})
+    return render(request, "devices/transport_profile.html", page_context())
+
+
+@require_http_methods(["GET"])
+def transport_profile_data(request, device_id):
+    """Return the active profile thresholds for client-side prediction labeling."""
+    user_id = request.session.get("supabase_user_id")
+    if not user_id:
+        return JsonResponse({"detail": "Autentificarea este necesara."}, status=401)
+
+    supabase = get_service()
+    if not supabase.get_device(device_id, user_id):
+        return JsonResponse({"detail": "Dispozitivul nu a fost gasit."}, status=404)
+
+    profile = supabase.get_transport_profile(device_id, user_id)
+    if profile:
+        return JsonResponse({
+            "profile_name": profile.get("profile_name"),
+            "thresholds": profile.get("thresholds", {}),
+        })
+    return JsonResponse({
+        "profile_name": "Standard",
+        "thresholds": {
+            "pm25": {"minimum": 0, "maximum": 12},
+            "pm10": {"minimum": 0, "maximum": 54},
+            "co2": {"minimum": 0, "maximum": 1000},
+        },
+    })
 
 
 @require_http_methods(["POST"])

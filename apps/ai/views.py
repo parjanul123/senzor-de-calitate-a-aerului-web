@@ -8,6 +8,55 @@ from apps.ai.services import AIService
 from config.supabase_client import get_service
 
 
+STANDARD_THRESHOLDS = {
+    "pm25": {"minimum": 0, "maximum": 12},
+    "pm10": {"minimum": 0, "maximum": 54},
+    "co2": {"minimum": 0, "maximum": 1000},
+}
+
+PREDICTION_PARAMETER_MAP = {
+    "temperatura": "temperature",
+    "umiditate": "humidity",
+    "co2": "co2",
+    "pm25": "pm25",
+    "pm10": "pm10",
+    "voc": "voc",
+}
+
+
+def evaluate_prediction_profile(payload, device_id, user_id):
+    """Compare prediction inputs to the selected device's active profile thresholds."""
+    profile = get_service().get_transport_profile(device_id, user_id)
+    thresholds = profile.get("thresholds", {}) if profile else STANDARD_THRESHOLDS
+    checks = []
+    for parameter, threshold in thresholds.items():
+        value = payload.get(PREDICTION_PARAMETER_MAP.get(parameter, parameter))
+        if not isinstance(value, (int, float)):
+            continue
+        minimum = float(threshold["minimum"])
+        maximum = float(threshold["maximum"])
+        if value < minimum:
+            label = "sub_minim"
+        elif value > maximum:
+            label = "peste_maxim"
+        else:
+            label = "in_interval"
+        checks.append({
+            "parameter": parameter,
+            "value": value,
+            "minimum": minimum,
+            "maximum": maximum,
+            "in_range": label == "in_interval",
+            "label": label,
+        })
+    return {
+        "profile_name": profile.get("profile_name") if profile else "Standard",
+        "is_standard": profile is None,
+        "checks": checks,
+        "in_range": all(check["in_range"] for check in checks) if checks else None,
+    }
+
+
 def ai_status(request):
     return render(request, "ai/interface.html")
 
@@ -59,7 +108,12 @@ def predict(request):
     payload = _json_payload(request)
     if payload is None:
         return JsonResponse({"detail": "JSON invalid."}, status=400)
-    return JsonResponse(AIService().predict(payload))
+    user_id = request.session.get("supabase_user_id")
+    device_id = payload.get("device_id")
+    prediction = AIService().predict(payload)
+    if user_id and device_id:
+        prediction["profile_evaluation"] = evaluate_prediction_profile(payload, device_id, user_id)
+    return JsonResponse(prediction)
 
 
 @require_POST

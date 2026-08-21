@@ -91,16 +91,18 @@ def get_device_dashboard_data(device_id: str, user_id: str, limit: int = 1000) -
     transport_profile = supabase.get_transport_profile(device_id, user_id)
     transport_status = {"state": "not_configured"}
     if transport_profile:
-        temperature = (latest or {}).get("temperatura")
-        if temperature is None:
+        threshold_states = []
+        for parameter, threshold in transport_profile.get("thresholds", {}).items():
+            value = (latest or {}).get(parameter)
+            if value is None:
+                continue
+            minimum = float(threshold["minimum"])
+            maximum = float(threshold["maximum"])
+            threshold_states.append(minimum <= float(value) <= maximum)
+        if not threshold_states:
             transport_status = {"state": "no_measurement"}
         else:
-            minimum = float(transport_profile["minimum_temperature"])
-            maximum = float(transport_profile["maximum_temperature"])
-            transport_status = {
-                "state": "in_range" if minimum <= float(temperature) <= maximum else "out_of_range",
-                "temperature": float(temperature),
-            }
+            transport_status = {"state": "in_range" if all(threshold_states) else "out_of_range"}
     
     return {
         "device": device,

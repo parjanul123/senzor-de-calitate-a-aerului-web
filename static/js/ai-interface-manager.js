@@ -122,6 +122,43 @@ class AIInterfaceManager {
             algorithm
         };
     }
+
+    async getProfileEvaluation(values, overallQuality) {
+        const response = await fetch(`/devices/${encodeURIComponent(this.currentDevice)}/transport-profile/data/`, {
+            credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('Profilul activ nu a putut fi incarcat.');
+
+        const profile = await response.json();
+        const predictionKeys = {
+            temperatura: 'temperature', umiditate: 'humidity', co2: 'co2',
+            pm25: 'pm25', pm10: 'pm10', voc: 'voc',
+        };
+        const normalizedQuality = String(overallQuality || '').toLowerCase();
+        if (profile.profile_name === 'Standard' && ['good', 'moderate', 'poor'].includes(normalizedQuality)) {
+            const checks = Object.entries(predictionKeys).map(([parameter, key]) => ({
+                parameter,
+                value: values[key],
+                label: normalizedQuality,
+                in_range: normalizedQuality === 'good',
+            }));
+            return { profile_name: 'Standard', checks, in_range: normalizedQuality === 'good' };
+        }
+        const checks = Object.entries(profile.thresholds || {}).map(([parameter, threshold]) => {
+            const value = values[predictionKeys[parameter]];
+            if (!Number.isFinite(Number(value))) return null;
+            const minimum = Number(threshold.minimum);
+            const maximum = Number(threshold.maximum);
+            const numericValue = Number(value);
+            const label = numericValue < minimum ? 'sub_minim' : numericValue > maximum ? 'peste_maxim' : 'in_interval';
+            return { parameter, value: numericValue, minimum, maximum, label, in_range: label === 'in_interval' };
+        }).filter(Boolean);
+        return {
+            profile_name: profile.profile_name || 'Standard',
+            checks,
+            in_range: checks.length ? checks.every((check) => check.in_range) : null,
+        };
+    }
     
     /**
      * Switch between tabs
@@ -375,6 +412,11 @@ class AIInterfaceManager {
             );
             prediction.algorithm = algorithm;
             prediction.input_values = prediction.input_values || predictionPayload;
+            try {
+                prediction.profile_evaluation = await this.getProfileEvaluation(prediction.input_values, prediction.prediction);
+            } catch (error) {
+                prediction.profileEvaluationError = error.message;
+            }
 
             const forecastHorizon = Number(document.getElementById('forecast-horizon')?.value || 24);
             const forecastHorizons = Array.from(document.querySelectorAll('#forecast-horizon option'))
@@ -428,9 +470,25 @@ class AIInterfaceManager {
 
         if (prediction.prediction || prediction.input_values) {
             const inputValues = prediction.input_values || {};
+            const profileChecks = prediction.profile_evaluation?.checks || [];
+            const profileParameterMap = { temperature: 'temperatura', humidity: 'umiditate', co2: 'co2', pm25: 'pm25', pm10: 'pm10', voc: 'voc' };
             const formatValue = (metric, suffix = '') => typeof inputValues[metric] === 'number'
                 ? `${inputValues[metric].toFixed(1)}${suffix}`
                 : '—';
+            const formatProfileLabel = (metric) => {
+                const check = profileChecks.find((item) => item.parameter === profileParameterMap[metric]);
+                if (!check) return '<br><span class="badge bg-secondary">Not configured</span>';
+                const labels = {
+                    in_interval: ['success', 'Good'],
+                    sub_minim: ['warning', 'Moderate'],
+                    peste_maxim: ['danger', 'Poor'],
+                    good: ['success', 'Good'],
+                    moderate: ['warning', 'Moderate'],
+                    poor: ['danger', 'Poor'],
+                };
+                const [color, text] = labels[check.label] || ['secondary', 'Fara prag'];
+                return `<br><span class="badge bg-${color}">${text}</span>`;
+            };
             const confidence = typeof prediction.confidence === 'number'
                 ? `${(prediction.confidence * 100).toFixed(1)}%`
                 : '—';
@@ -454,15 +512,29 @@ class AIInterfaceManager {
                                 <tr>
                                     <td><strong>${this.escapeHtml(String(prediction.prediction || '—'))}</strong></td>
                                     <td>${confidence}</td>
-                                    <td>${formatValue('pm25', ' µg/m³')}</td>
-                                    <td>${formatValue('pm10', ' µg/m³')}</td>
-                                    <td>${formatValue('co2', ' ppm')}</td>
-                                    <td>${formatValue('temperature', ' °C')}</td>
-                                    <td>${formatValue('humidity', '%')}</td>
+                                    <td>${formatValue('pm25', ' µg/m³')}${formatProfileLabel('pm25')}</td>
+                                    <td>${formatValue('pm10', ' µg/m³')}${formatProfileLabel('pm10')}</td>
+                                    <td>${formatValue('co2', ' ppm')}${formatProfileLabel('co2')}</td>
+                                    <td>${formatValue('temperature', ' °C')}${formatProfileLabel('temperature')}</td>
+                                    <td>${formatValue('humidity', '%')}${formatProfileLabel('humidity')}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                </div>
+            `;
+        }
+
+        if (prediction.profile_evaluation) {
+            const evaluation = prediction.profile_evaluation;
+            const statusClass = evaluation.in_range === true ? 'success' : evaluation.in_range === false ? 'danger' : 'secondary';
+            const statusText = evaluation.in_range === true ? 'Toate valorile sunt in pragurile profilului.' : evaluation.in_range === false ? 'Cel putin o valoare depaseste pragul profilului.' : 'Nu exista valori predictate pentru pragurile configurate.';
+            const checks = (evaluation.checks || []).map((check) => `<li>${this.escapeHtml(check.parameter)}: ${this.escapeHtml(String(check.value))} (${this.escapeHtml(String(check.minimum))} - ${this.escapeHtml(String(check.maximum))}) ${check.in_range ? 'in interval' : 'in afara intervalului'}</li>`).join('');
+            html += `
+                <div class="prediction-metric">
+                    <strong>Profil activ: ${this.escapeHtml(evaluation.profile_name || 'Standard')}</strong>
+                    <span class="badge bg-${statusClass} ms-2">${this.escapeHtml(statusText)}</span>
+                    ${checks ? `<ul class="mb-0 mt-2">${checks}</ul>` : ''}
                 </div>
             `;
         }

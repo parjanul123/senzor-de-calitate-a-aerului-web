@@ -88,7 +88,7 @@ def get_supabase_client() -> Client:
     from django.conf import settings
     
     url = settings.SUPABASE_URL
-    key = settings.SUPABASE_ANON_KEY
+    key = getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "") or settings.SUPABASE_ANON_KEY
     key_type = identify_key_type(key)
     
     logger.info(f"🔌 Initializing Supabase client")
@@ -306,30 +306,103 @@ class SupabaseService:
             return False
 
     # ============= Transport profiles =============
+    _TRANSPORT_PROFILE_PREFIX = "transport-profile:"
+
     @staticmethod
     def _format_transport_profile(profile: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Expose the profiles-table name column through the UI's profile_name key."""
         if not profile:
             return None
-        return {**profile, "profile_name": profile.get("name", "")}
+        name = profile.get("name", "")
+        if not isinstance(name, str) or not name.startswith(SupabaseService._TRANSPORT_PROFILE_PREFIX):
+            return None
+        try:
+            profile_data = json.loads(name.removeprefix(SupabaseService._TRANSPORT_PROFILE_PREFIX))
+        except json.JSONDecodeError:
+            return None
+        if "thresholds" not in profile_data and profile_data.get("parameter"):
+            profile_data["thresholds"] = {
+                profile_data["parameter"]: {
+                    "minimum": profile_data.get("minimum_value"),
+                    "maximum": profile_data.get("maximum_value"),
+                }
+            }
+        return {**profile, **profile_data, "profile_name": profile_data.get("profile_name", "")}
+
+    @classmethod
+    def _serialize_transport_profile(cls, profile_data: Dict[str, Any]) -> str:
+        """Store profile settings in profiles.name until dedicated columns are available."""
+        return cls._TRANSPORT_PROFILE_PREFIX + json.dumps(profile_data, separators=(",", ":"))
+
+    @staticmethod
+    def _threshold_column_values(thresholds: Dict[str, Dict[str, float]]) -> Dict[str, Optional[float]]:
+        """Map profile parameters onto the dedicated threshold columns already in profiles."""
+        column_prefixes = {
+            "temperatura": "temperature",
+            "umiditate": "humidity",
+            "co2": "co2",
+            "pm25": "pm25",
+            "pm10": "pm10",
+        }
+        values = {}
+        for parameter, prefix in column_prefixes.items():
+            threshold = thresholds.get(parameter)
+            values[f"{prefix}_min"] = threshold.get("minimum") if threshold else None
+            values[f"{prefix}_max"] = threshold.get("maximum") if threshold else None
+        return values
+
+    @staticmethod
+    def _has_missing_profiles_column(error: Exception) -> bool:
+        """Detect an unapplied transport-profile migration without hiding other API errors."""
+        error_message = str(error)
+        return isinstance(error, APIError) and (
+            ("column profiles." in error_message and "does not exist" in error_message)
+            or "'code': 'PGRST204'" in error_message
+        )
+
+    @staticmethod
+    def _is_empty_profiles_response(error: Exception) -> bool:
+        """Postgrest-py represents a 204 result from maybe_single as APIError."""
+        return isinstance(error, APIError) and "'code': '204'" in str(error)
+
+    @staticmethod
+    def _is_profiles_rls_denial(error: Exception) -> bool:
+        """Recognize RLS denials so the UI can report a configuration issue safely."""
+        return isinstance(error, APIError) and "'code': '42501'" in str(error)
+
+    def get_transport_profiles(self, device_id: str, user_id: str) -> list:
+        """List custom parameter profiles configured for an owned device."""
+        device = self.get_device(device_id, user_id)
+        if not device:
+            return []
+
+        try:
+            response = self.client.table("profiles").select("*").eq("user_id", user_id).execute()
+            profiles = [self._format_transport_profile(profile) for profile in (response.data or [])]
+            return [profile for profile in profiles if profile and profile.get("device_id") == device_id]
+        except APIError as e:
+            if self._has_missing_profiles_column(e):
+                logger.warning("Transport profile migration is not applied yet: %s", e)
+                return []
+            self._handle_error("SELECT", "profiles", e)
+        except Exception as e:
+            self._handle_error("SELECT", "profiles", e)
 
     def get_transport_profile(self, device_id: str, user_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch the profiles-table temperature profile configured for an owned device."""
+        """Fetch the active custom parameter profile configured for an owned device."""
         device = self.get_device(device_id, user_id)
         if not device:
             return None
 
         try:
-            response = (
-                self.client.table("profiles")
-                .select("*")
-                .eq("device_id", device_id)
-                .eq("user_id", user_id)
-                .maybe_single()
-                .execute()
-            )
-            return self._format_transport_profile(response.data if response and response.data else None)
+            profiles = self.get_transport_profiles(device_id, user_id)
+            return next((profile for profile in profiles if profile.get("is_active")), None)
         except APIError as e:
+            if self._has_missing_profiles_column(e):
+                logger.warning("Transport profile migration is not applied yet: %s", e)
+                return None
+            if self._is_empty_profiles_response(e):
+                return None
             self._handle_error("SELECT", "profiles", e)
         except Exception as e:
             self._handle_error("SELECT", "profiles", e)
@@ -339,38 +412,139 @@ class SupabaseService:
         device_id: str,
         user_id: str,
         profile_name: str,
-        cargo_name: str,
-        minimum_temperature: float,
-        maximum_temperature: float,
+        thresholds: Dict[str, Dict[str, float]],
         notes: str = "",
     ) -> Optional[Dict[str, Any]]:
-        """Create or replace an owned device temperature profile in profiles."""
+        """Create a custom parameter profile in profiles for an owned device."""
         device = self.get_device(device_id, user_id)
         if not device:
             return None
 
         try:
-            response = (
-                self.client.table("profiles")
-                .upsert(
-                    {
-                        "device_id": device_id,
-                        "user_id": user_id,
-                        "name": profile_name,
-                        "cargo_name": cargo_name,
-                        "minimum_temperature": minimum_temperature,
-                        "maximum_temperature": maximum_temperature,
-                        "notes": notes or None,
-                    },
-                    on_conflict="device_id",
-                )
-                .execute()
-            )
+            profile_data = {
+                "device_id": device_id,
+                "profile_name": profile_name,
+                "thresholds": thresholds,
+                "is_active": False,
+                "notes": notes,
+            }
+            profile_row = {
+                "user_id": user_id,
+                "device_id": device_id,
+                "name": self._serialize_transport_profile(profile_data),
+            }
+            profile_row.update(self._threshold_column_values(thresholds))
+            response = self.client.table("profiles").insert(profile_row).execute()
             return self._format_transport_profile(response.data[0] if response and response.data else None)
         except APIError as e:
+            if self._has_missing_profiles_column(e):
+                logger.warning("Transport profile migration is not applied yet: %s", e)
+                return None
+            if self._is_profiles_rls_denial(e):
+                logger.warning("Profiles insert blocked by RLS: %s", e)
+                return None
             self._handle_error("UPSERT", "profiles", e)
         except Exception as e:
             self._handle_error("UPSERT", "profiles", e)
+
+    def update_transport_profile(
+        self,
+        device_id: str,
+        profile_id: str,
+        user_id: str,
+        profile_name: str,
+        thresholds: Dict[str, Dict[str, float]],
+        notes: str = "",
+    ) -> bool:
+        """Update a named profile and its independent parameter thresholds."""
+        profiles = self.get_transport_profiles(device_id, user_id)
+        profile = next((item for item in profiles if str(item.get("id")) == profile_id), None)
+        if not profile:
+            return False
+        profile_data = {
+            "device_id": device_id,
+            "profile_name": profile_name,
+            "thresholds": thresholds,
+            "is_active": profile.get("is_active", False),
+            "notes": notes,
+        }
+        try:
+            profile_row = {
+                "name": self._serialize_transport_profile(profile_data),
+            }
+            profile_row.update(self._threshold_column_values(thresholds))
+            response = self.client.table("profiles").update(profile_row).eq("id", profile_id).eq("user_id", user_id).execute()
+            return bool(response and response.data)
+        except APIError as e:
+            if self._is_profiles_rls_denial(e):
+                logger.warning("Profiles update blocked by RLS: %s", e)
+                return False
+            self._handle_error("UPDATE", "profiles", e)
+
+    def delete_transport_profile(self, device_id: str, profile_id: str, user_id: str) -> bool:
+        """Delete one owned custom profile from profiles."""
+        profiles = self.get_transport_profiles(device_id, user_id)
+        if not any(str(profile.get("id")) == profile_id for profile in profiles):
+            return False
+        try:
+            response = self.client.table("profiles").delete().eq("id", profile_id).eq("user_id", user_id).execute()
+            return bool(response and response.data)
+        except APIError as e:
+            if self._is_profiles_rls_denial(e):
+                logger.warning("Profiles delete blocked by RLS: %s", e)
+                return False
+            self._handle_error("DELETE", "profiles", e)
+
+    def activate_transport_profile(self, device_id: str, profile_id: str, user_id: str) -> bool:
+        """Make one custom profile active for an owned device."""
+        device = self.get_device(device_id, user_id)
+        if not device:
+            return False
+
+        try:
+            profiles = self.get_transport_profiles(device_id, user_id)
+            selected_profile = next((profile for profile in profiles if str(profile.get("id")) == profile_id), None)
+            if not selected_profile:
+                return False
+            for profile in profiles:
+                profile_data = {
+                    "device_id": profile["device_id"],
+                    "profile_name": profile["profile_name"],
+                    "thresholds": profile.get("thresholds", {}),
+                    "is_active": profile["id"] == selected_profile["id"],
+                    "notes": profile.get("notes", ""),
+                }
+                self.client.table("profiles").update({"name": self._serialize_transport_profile(profile_data)}).eq("id", profile["id"]).eq("user_id", user_id).execute()
+            return True
+        except APIError as e:
+            if self._has_missing_profiles_column(e):
+                logger.warning("Transport profile migration is not applied yet: %s", e)
+                return False
+            self._handle_error("UPDATE", "profiles", e)
+        except Exception as e:
+            self._handle_error("UPDATE", "profiles", e)
+
+    def activate_standard_transport_profile(self, device_id: str, user_id: str) -> bool:
+        """Make the built-in Standard profile active by disabling custom profiles."""
+        profiles = self.get_transport_profiles(device_id, user_id)
+        try:
+            for profile in profiles:
+                profile_data = {
+                    "device_id": profile["device_id"],
+                    "profile_name": profile["profile_name"],
+                    "thresholds": profile.get("thresholds", {}),
+                    "is_active": False,
+                    "notes": profile.get("notes", ""),
+                }
+                self.client.table("profiles").update({
+                    "name": self._serialize_transport_profile(profile_data),
+                }).eq("id", profile["id"]).eq("user_id", user_id).execute()
+            return True
+        except APIError as e:
+            if self._is_profiles_rls_denial(e):
+                logger.warning("Standard profile activation blocked by RLS: %s", e)
+                return False
+            self._handle_error("UPDATE", "profiles", e)
     
     # ============= Measurements =============
     def get_device_measurements(self, device_id: str, user_id: str, limit: int = 100) -> list:

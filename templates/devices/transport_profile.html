@@ -16,50 +16,151 @@
         <div class="alert alert-success" role="status">{{ success }}</div>
     {% endif %}
 
-    <div class="row">
-        <div class="col-lg-8">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <h2 class="h5 mb-3">Profiluri disponibile</h2>
+            <div class="card border-primary mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="h5 mb-0">Standard</h3>
+                        {% if standard_active %}
+                            <span class="badge text-bg-success">Activ</span>
+                        {% else %}
+                            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="activate_standard"><button type="submit" class="btn btn-sm btn-outline-primary">Activeaza</button></form>
+                        {% endif %}
+                    </div>
+                    <div class="row g-2">
+                        {% for limit in standard_limits %}
+                            <div class="col-sm-6"><div class="border rounded p-2 small"><strong>{{ limit.label }}</strong><br>{{ limit.minimum }} - {{ limit.maximum }} {{ limit.unit }}</div></div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% for profile in profiles %}
+                <div class="card mb-3 {% if profile.is_active %}border-success{% endif %}">
+                    <div class="card-body d-flex justify-content-between align-items-center gap-3">
+                        <div>
+                            <h3 class="h6 mb-1">{{ profile.profile_name }}</h3>
+                            {% for threshold in profile.threshold_items %}
+                                <div class="small text-muted">{{ threshold.label }}: {{ threshold.minimum }} - {{ threshold.maximum }} {{ threshold.unit }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            {% if profile.is_active %}
+                                <span class="badge text-bg-success">Activ</span>
+                            {% else %}
+                                <form method="post">{% csrf_token %}<input type="hidden" name="action" value="activate"><input type="hidden" name="profile_id" value="{{ profile.id }}"><button type="submit" class="btn btn-sm btn-outline-primary">Activeaza</button></form>
+                            {% endif %}
+                            <a href="?edit={{ profile.id }}" class="btn btn-sm btn-outline-secondary">Editeaza</a>
+                            <form method="post" onsubmit="return confirm('Stergi acest profil?');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="profile_id" value="{{ profile.id }}"><button type="submit" class="btn btn-sm btn-outline-danger">Sterge</button></form>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-muted">Nu exista inca profiluri personalizate.</p>
+            {% endfor %}
+        </div>
+        <div class="col-lg-5">
             <div class="card">
                 <div class="card-body p-4">
+                    <h2 class="h5 mb-3">{% if editing_profile %}Editeaza profil{% else %}Adauga profil{% endif %}</h2>
                     <form method="post" novalidate>
                         {% csrf_token %}
+                        {% if editing_profile %}<input type="hidden" name="action" value="edit"><input type="hidden" name="profile_id" value="{{ editing_profile.id }}">{% endif %}
                         <div class="mb-3">
                             <label for="profile_name" class="form-label">Nume profil</label>
                             <input type="text" class="form-control" id="profile_name" name="profile_name" value="{{ form_data.profile_name }}" maxlength="120" required autocomplete="off" placeholder="Ex.: Portocale - cursa Bucuresti - Cluj">
                         </div>
-                        <div class="mb-3">
-                            <label for="cargo_name" class="form-label">Marfa transportata</label>
-                            <input type="text" class="form-control" id="cargo_name" name="cargo_name" value="{{ form_data.cargo_name }}" maxlength="120" required autocomplete="off" placeholder="Ex.: mere Golden, portocale, flori">
-                            <div class="form-text">Introdu denumirea folosita de firma pentru aceasta cursa sau incarcare.</div>
+                        <div class="border rounded p-3 mb-3">
+                            <label for="threshold_parameter" class="form-label">Parametru</label>
+                            <select class="form-select mb-3" id="threshold_parameter">
+                                {% for key, label, unit in parameters %}<option value="{{ key }}">{{ label }} ({{ unit }})</option>{% endfor %}
+                            </select>
+                            <div class="row g-2">
+                                <div class="col-6"><label for="threshold_minimum" class="form-label small">Minim</label><input type="number" class="form-control" id="threshold_minimum" step="0.1"></div>
+                                <div class="col-6"><label for="threshold_maximum" class="form-label small">Maxim</label><input type="number" class="form-control" id="threshold_maximum" step="0.1"></div>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="add-threshold">Adauga acest prag</button>
+                            <div class="invalid-feedback d-block mt-2 d-none" id="threshold-error"></div>
                         </div>
 
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="minimum_temperature" class="form-label">Temperatura minima (°C)</label>
-                                <input type="number" class="form-control" id="minimum_temperature" name="minimum_temperature" value="{{ form_data.minimum_temperature }}" step="0.1" min="-50" max="80" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="maximum_temperature" class="form-label">Temperatura maxima (°C)</label>
-                                <input type="number" class="form-control" id="maximum_temperature" name="maximum_temperature" value="{{ form_data.maximum_temperature }}" step="0.1" min="-50" max="80" required>
-                            </div>
+                        <div id="thresholds-list" class="mb-4">
+                            <p class="text-muted small mb-2" id="thresholds-empty">Nu ai adaugat niciun prag.</p>
+                            {% for field in parameter_fields %}
+                                {% if field.minimum != "" and field.maximum != "" %}
+                                    <div class="border rounded p-2 mb-2 threshold-row" data-parameter="{{ field.key }}" data-label="{{ field.label }}" data-unit="{{ field.unit }}" data-minimum="{{ field.minimum }}" data-maximum="{{ field.maximum }}">
+                                        <input type="hidden" name="minimum_{{ field.key }}" value="{{ field.minimum }}">
+                                        <input type="hidden" name="maximum_{{ field.key }}" value="{{ field.maximum }}">
+                                        <div class="d-flex justify-content-between align-items-center"><span><strong>{{ field.label }}</strong>: {{ field.minimum }} - {{ field.maximum }} {{ field.unit }}</span><button type="button" class="btn btn-sm btn-outline-danger remove-threshold">Sterge</button></div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
                         </div>
-                        <p class="form-text mt-2">Limitele sunt stabilite de firma conform produsului, contractului sau procedurii interne.</p>
 
                         <div class="mb-4">
                             <label for="notes" class="form-label">Observatii</label>
                             <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="1000" placeholder="Ex.: cursa Bucuresti - Cluj, temperatura verificata la incarcare">{{ form_data.notes }}</textarea>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">Salveaza profilul</button>
+                        <button type="submit" class="btn btn-primary">{% if editing_profile %}Salveaza modificarile{% else %}Salveaza profilul{% endif %}</button>
+                        {% if editing_profile %}<a href="{% url 'devices:transport_profile' device.device_id %}" class="btn btn-outline-secondary">Anuleaza</a>{% endif %}
                     </form>
                 </div>
             </div>
         </div>
-        <div class="col-lg-4 mt-4 mt-lg-0">
-            <div class="border-start border-4 border-info ps-3">
-                <h2 class="h5">Regula apartine clientului</h2>
-                <p class="text-muted mb-0">Platforma compara masuratorile senzorului cu intervalul salvat aici. Nu presupune valori pentru niciun tip de marfa.</p>
-            </div>
-        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const parameterSelect = document.getElementById('threshold_parameter');
+    const minimumInput = document.getElementById('threshold_minimum');
+    const maximumInput = document.getElementById('threshold_maximum');
+    const addButton = document.getElementById('add-threshold');
+    const thresholdList = document.getElementById('thresholds-list');
+    const emptyMessage = document.getElementById('thresholds-empty');
+    const errorMessage = document.getElementById('threshold-error');
+
+    function updateEmptyMessage() {
+        emptyMessage.classList.toggle('d-none', Boolean(thresholdList.querySelector('.threshold-row')));
+    }
+
+    function removeThreshold(button) {
+        button.closest('.threshold-row').remove();
+        updateEmptyMessage();
+    }
+
+    thresholdList.querySelectorAll('.remove-threshold').forEach((button) => button.addEventListener('click', () => removeThreshold(button)));
+    updateEmptyMessage();
+
+    addButton.addEventListener('click', () => {
+        const parameter = parameterSelect.value;
+        const label = parameterSelect.options[parameterSelect.selectedIndex].text;
+        const minimum = minimumInput.value.trim();
+        const maximum = maximumInput.value.trim();
+        errorMessage.classList.add('d-none');
+
+        if (!minimum || !maximum || Number(minimum) >= Number(maximum)) {
+            errorMessage.textContent = 'Introdu un minim si un maxim valid, iar minimul trebuie sa fie mai mic.';
+            errorMessage.classList.remove('d-none');
+            return;
+        }
+
+        thresholdList.querySelector(`[data-parameter="${parameter}"]`)?.remove();
+        const unit = label.match(/\((.*)\)/)?.[1] || '';
+        const displayLabel = label.replace(/\s*\(.*\)/, '');
+        const row = document.createElement('div');
+        row.className = 'border rounded p-2 mb-2 threshold-row';
+        row.dataset.parameter = parameter;
+        row.innerHTML = `<input type="hidden" name="minimum_${parameter}" value="${minimum}"><input type="hidden" name="maximum_${parameter}" value="${maximum}"><div class="d-flex justify-content-between align-items-center"><span><strong>${displayLabel}</strong>: ${minimum} - ${maximum} ${unit}</span><button type="button" class="btn btn-sm btn-outline-danger remove-threshold">Sterge</button></div>`;
+        row.querySelector('.remove-threshold').addEventListener('click', () => removeThreshold(row.querySelector('.remove-threshold')));
+        thresholdList.appendChild(row);
+        minimumInput.value = '';
+        maximumInput.value = '';
+        updateEmptyMessage();
+    });
+})();
+</script>
 {% endblock %}

@@ -8,6 +8,7 @@ ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserve
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", SUPABASE_URL)
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", SUPABASE_ANON_KEY)
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY)
 SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", SUPABASE_JWKS_URL)
 
 # For development, use standard static files storage (no hashing/compression)

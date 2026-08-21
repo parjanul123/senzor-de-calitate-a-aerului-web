@@ -87,6 +87,7 @@ CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
 # Supabase Auth is the sole identity provider; Django authentication is not enabled.
 SUPABASE_URL = ""
 SUPABASE_ANON_KEY = ""
+SUPABASE_SERVICE_ROLE_KEY = ""
 SUPABASE_JWKS_URL = ""
 
 # Logging configuration
