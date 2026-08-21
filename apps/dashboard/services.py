@@ -87,10 +87,26 @@ def get_device_dashboard_data(device_id: str, user_id: str, limit: int = 1000) -
     if latest:
         logger.debug(f"📊 Latest measurement keys: {list(latest.keys())}")
         logger.debug(f"📊 Latest measurement: {latest}")
+
+    transport_profile = supabase.get_transport_profile(device_id, user_id)
+    transport_status = {"state": "not_configured"}
+    if transport_profile:
+        temperature = (latest or {}).get("temperatura")
+        if temperature is None:
+            transport_status = {"state": "no_measurement"}
+        else:
+            minimum = float(transport_profile["minimum_temperature"])
+            maximum = float(transport_profile["maximum_temperature"])
+            transport_status = {
+                "state": "in_range" if minimum <= float(temperature) <= maximum else "out_of_range",
+                "temperature": float(temperature),
+            }
     
     return {
         "device": device,
         "latest_measurement": latest,
         "measurements": measurements,
         "chart_data": chart_data,
+        "transport_profile": transport_profile,
+        "transport_status": transport_status,
     }

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Profil transport - Senzor Calitate{% endblock %}
+
+{% block content %}
+<div class="container-lg">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <a href="{% url 'dashboard:device' device.device_id %}" class="btn btn-sm btn-outline-secondary mb-3">Inapoi la dispozitiv</a>
+            <h1 class="h3 mb-1">Profil transport</h1>
+            <p class="text-muted mb-0">{{ device.name }} · {{ device.device_id }}</p>
+        </div>
+    </div>
+
+    {% if success %}
+        <div class="alert alert-success" role="status">{{ success }}</div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body p-4">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="profile_name" class="form-label">Nume profil</label>
+                            <input type="text" class="form-control" id="profile_name" name="profile_name" value="{{ form_data.profile_name }}" maxlength="120" required autocomplete="off" placeholder="Ex.: Portocale - cursa Bucuresti - Cluj">
+                        </div>
+                        <div class="mb-3">
+                            <label for="cargo_name" class="form-label">Marfa transportata</label>
+                            <input type="text" class="form-control" id="cargo_name" name="cargo_name" value="{{ form_data.cargo_name }}" maxlength="120" required autocomplete="off" placeholder="Ex.: mere Golden, portocale, flori">
+                            <div class="form-text">Introdu denumirea folosita de firma pentru aceasta cursa sau incarcare.</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="minimum_temperature" class="form-label">Temperatura minima (°C)</label>
+                                <input type="number" class="form-control" id="minimum_temperature" name="minimum_temperature" value="{{ form_data.minimum_temperature }}" step="0.1" min="-50" max="80" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="maximum_temperature" class="form-label">Temperatura maxima (°C)</label>
+                                <input type="number" class="form-control" id="maximum_temperature" name="maximum_temperature" value="{{ form_data.maximum_temperature }}" step="0.1" min="-50" max="80" required>
+                            </div>
+                        </div>
+                        <p class="form-text mt-2">Limitele sunt stabilite de firma conform produsului, contractului sau procedurii interne.</p>
+
+                        <div class="mb-4">
+                            <label for="notes" class="form-label">Observatii</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="1000" placeholder="Ex.: cursa Bucuresti - Cluj, temperatura verificata la incarcare">{{ form_data.notes }}</textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Salveaza profilul</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mt-4 mt-lg-0">
+            <div class="border-start border-4 border-info ps-3">
+                <h2 class="h5">Regula apartine clientului</h2>
+                <p class="text-muted mb-0">Platforma compara masuratorile senzorului cu intervalul salvat aici. Nu presupune valori pentru niciun tip de marfa.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

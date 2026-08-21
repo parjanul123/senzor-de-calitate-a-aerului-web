@@ -304,6 +304,73 @@ class SupabaseService:
         except Exception as e:
             self._handle_error("UPDATE", "devices", e)
             return False
+
+    # ============= Transport profiles =============
+    @staticmethod
+    def _format_transport_profile(profile: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Expose the profiles-table name column through the UI's profile_name key."""
+        if not profile:
+            return None
+        return {**profile, "profile_name": profile.get("name", "")}
+
+    def get_transport_profile(self, device_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch the profiles-table temperature profile configured for an owned device."""
+        device = self.get_device(device_id, user_id)
+        if not device:
+            return None
+
+        try:
+            response = (
+                self.client.table("profiles")
+                .select("*")
+                .eq("device_id", device_id)
+                .eq("user_id", user_id)
+                .maybe_single()
+                .execute()
+            )
+            return self._format_transport_profile(response.data if response and response.data else None)
+        except APIError as e:
+            self._handle_error("SELECT", "profiles", e)
+        except Exception as e:
+            self._handle_error("SELECT", "profiles", e)
+
+    def save_transport_profile(
+        self,
+        device_id: str,
+        user_id: str,
+        profile_name: str,
+        cargo_name: str,
+        minimum_temperature: float,
+        maximum_temperature: float,
+        notes: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """Create or replace an owned device temperature profile in profiles."""
+        device = self.get_device(device_id, user_id)
+        if not device:
+            return None
+
+        try:
+            response = (
+                self.client.table("profiles")
+                .upsert(
+                    {
+                        "device_id": device_id,
+                        "user_id": user_id,
+                        "name": profile_name,
+                        "cargo_name": cargo_name,
+                        "minimum_temperature": minimum_temperature,
+                        "maximum_temperature": maximum_temperature,
+                        "notes": notes or None,
+                    },
+                    on_conflict="device_id",
+                )
+                .execute()
+            )
+            return self._format_transport_profile(response.data[0] if response and response.data else None)
+        except APIError as e:
+            self._handle_error("UPSERT", "profiles", e)
+        except Exception as e:
+            self._handle_error("UPSERT", "profiles", e)
     
     # ============= Measurements =============
     def get_device_measurements(self, device_id: str, user_id: str, limit: int = 100) -> list:

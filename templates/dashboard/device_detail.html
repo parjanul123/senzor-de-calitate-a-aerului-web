@@ -12,6 +12,7 @@
             {% if device %}
                 <h1 class="h3 mb-1">{{ device.name }}</h1>
                 <p class="text-muted">ID: {{ device.device_id }}</p>
+                <a href="{% url 'devices:transport_profile' device.device_id %}" class="btn btn-outline-primary btn-sm">Configureaza limite transport</a>
             {% endif %}
         </div>
     </div>
@@ -19,6 +20,21 @@
     {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
     {% elif device %}
+        {% if transport_profile %}
+            <div class="alert {% if transport_status.state == 'out_of_range' %}alert-danger{% elif transport_status.state == 'in_range' %}alert-success{% else %}alert-secondary{% endif %} d-flex justify-content-between align-items-center" role="status">
+                <div>
+                    <strong>{{ transport_profile.profile_name }}</strong> ({{ transport_profile.cargo_name }}): interval configurat {{ transport_profile.minimum_temperature }}°C - {{ transport_profile.maximum_temperature }}°C.
+                    {% if transport_status.state == 'in_range' %}Temperatura curenta este in interval.{% elif transport_status.state == 'out_of_range' %}Temperatura curenta este in afara intervalului.{% else %}Asteptam o masuratoare de temperatura.{% endif %}
+                </div>
+                <a href="{% url 'devices:transport_profile' device.device_id %}" class="btn btn-sm btn-outline-dark">Modifica</a>
+            </div>
+        {% else %}
+            <div class="alert alert-info d-flex justify-content-between align-items-center" role="status">
+                <span>Nu este configurat niciun interval de temperatura pentru aceasta incarcatura.</span>
+                <a href="{% url 'devices:transport_profile' device.device_id %}" class="btn btn-sm btn-outline-primary">Seteaza min / max</a>
+            </div>
+        {% endif %}
+
         <!-- Latest Measurement Summary -->
         {% if latest_measurement %}
             <div class="row mb-4">
