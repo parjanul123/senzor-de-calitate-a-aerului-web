@@ -123,7 +123,7 @@ class AIInterfaceManager {
         };
     }
 
-    async getProfileEvaluation(values, overallQuality) {
+    async getProfileEvaluation(values) {
         const response = await fetch(`/devices/${encodeURIComponent(this.currentDevice)}/transport-profile/data/`, {
             credentials: 'same-origin',
         });
@@ -134,16 +134,6 @@ class AIInterfaceManager {
             temperatura: 'temperature', umiditate: 'humidity', co2: 'co2',
             pm25: 'pm25', pm10: 'pm10', voc: 'voc',
         };
-        const normalizedQuality = String(overallQuality || '').toLowerCase();
-        if (profile.profile_name === 'Standard' && ['good', 'moderate', 'poor'].includes(normalizedQuality)) {
-            const checks = Object.entries(predictionKeys).map(([parameter, key]) => ({
-                parameter,
-                value: values[key],
-                label: normalizedQuality,
-                in_range: normalizedQuality === 'good',
-            }));
-            return { profile_name: 'Standard', checks, in_range: normalizedQuality === 'good' };
-        }
         const checks = Object.entries(profile.thresholds || {}).map(([parameter, threshold]) => {
             const value = values[predictionKeys[parameter]];
             if (!Number.isFinite(Number(value))) return null;
@@ -413,7 +403,7 @@ class AIInterfaceManager {
             prediction.algorithm = algorithm;
             prediction.input_values = prediction.input_values || predictionPayload;
             try {
-                prediction.profile_evaluation = await this.getProfileEvaluation(prediction.input_values, prediction.prediction);
+                prediction.profile_evaluation = await this.getProfileEvaluation(prediction.input_values);
             } catch (error) {
                 prediction.profileEvaluationError = error.message;
             }
