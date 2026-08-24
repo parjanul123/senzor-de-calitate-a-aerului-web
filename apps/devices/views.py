@@ -7,6 +7,7 @@ from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 
+from apps.ai.services import AIService
 from apps.devices.services import get_user_devices, get_device_detail
 from config.supabase_client import get_service
 
@@ -191,6 +192,42 @@ def transport_profile_data(request, device_id):
             "co2": {"minimum": 0, "maximum": 1000},
         },
     })
+
+
+@require_http_methods(["GET"])
+def transport_profile_suggestions(request, device_id):
+    """Return AI suggestions for threshold configuration based on entered profile name."""
+    user_id = request.session.get("supabase_user_id")
+    if not user_id:
+        return JsonResponse({"success": False, "error": "Autentificarea este necesara."}, status=401)
+
+    supabase = get_service()
+    device = supabase.get_device(device_id, user_id)
+    if not device:
+        return JsonResponse({"success": False, "error": "Dispozitivul nu a fost gasit."}, status=404)
+
+    profile_name = (request.GET.get("profile_name") or "").strip()
+    if not profile_name:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Completeaza numele profilului, apoi cere sugestii AI.",
+            },
+            status=400,
+        )
+
+    search_goal = (request.GET.get("search_goal") or "").strip()
+    operation_mode = (request.GET.get("operation_mode") or "general").strip().lower()
+    if operation_mode not in {"general", "depozitare", "transport"}:
+        operation_mode = "general"
+
+    suggestion = AIService().recommend_transport_thresholds(
+        profile_name=profile_name,
+        device_name=device.get("name"),
+        search_goal=search_goal,
+        operation_mode=operation_mode,
+    )
+    return JsonResponse({"success": True, "suggestion": suggestion})
 
 
 @require_http_methods(["POST"])

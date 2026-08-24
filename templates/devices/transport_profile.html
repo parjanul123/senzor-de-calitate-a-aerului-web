@@ -67,6 +67,14 @@
                     <form method="post" novalidate>
                         {% csrf_token %}
                         {% if editing_profile %}<input type="hidden" name="action" value="edit"><input type="hidden" name="profile_id" value="{{ editing_profile.id }}">{% endif %}
+                        <div class="alert alert-info d-flex justify-content-between align-items-center gap-2" role="status">
+                            <div>
+                                <strong>Sugestii AI</strong><br>
+                                <small class="text-muted">Dupa ce completezi numele profilului, AI poate propune praguri initiale pentru acest dispozitiv.</small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="ai-suggest-btn">Aplica sugestii AI</button>
+                        </div>
+                        <div class="small mb-3" id="ai-suggest-feedback"></div>
                         <div class="mb-3">
                             <label for="profile_name" class="form-label">Nume profil</label>
                             <input type="text" class="form-control" id="profile_name" name="profile_name" value="{{ form_data.profile_name }}" maxlength="120" required autocomplete="off" placeholder="Ex.: Portocale - cursa Bucuresti - Cluj">
@@ -110,6 +118,32 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="aiSuggestionModal" tabindex="-1" aria-labelledby="aiSuggestionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiSuggestionModalLabel">Pentru ce sa caut mai exact?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label for="ai-operation-mode" class="form-label">Ce vrei sa faci?</label>
+                <select id="ai-operation-mode" class="form-select mb-3">
+                    <option value="general" selected>General</option>
+                    <option value="depozitare">Depozitare</option>
+                    <option value="transport">Transport</option>
+                </select>
+                <label for="ai-search-goal" class="form-label">Context optional pentru recomandari</label>
+                <textarea id="ai-search-goal" class="form-control" rows="3" placeholder="Ex.: transport medicamente vara, marfa sensibila la VOC"></textarea>
+                <small class="text-muted d-block mt-2">Daca lasi gol, AI foloseste doar numele profilului.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuleaza</button>
+                <button type="button" class="btn btn-primary" id="ai-run-suggest-btn">Genereaza sugestii</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -122,6 +156,15 @@
     const thresholdList = document.getElementById('thresholds-list');
     const emptyMessage = document.getElementById('thresholds-empty');
     const errorMessage = document.getElementById('threshold-error');
+    const aiSuggestButton = document.getElementById('ai-suggest-btn');
+    const aiFeedback = document.getElementById('ai-suggest-feedback');
+    const profileNameInput = document.getElementById('profile_name');
+    const notesInput = document.getElementById('notes');
+    const aiModalElement = document.getElementById('aiSuggestionModal');
+    const aiSearchGoalInput = document.getElementById('ai-search-goal');
+    const aiOperationModeInput = document.getElementById('ai-operation-mode');
+    const aiRunSuggestButton = document.getElementById('ai-run-suggest-btn');
+    const aiModal = (window.bootstrap && aiModalElement) ? new window.bootstrap.Modal(aiModalElement) : null;
 
     function updateEmptyMessage() {
         emptyMessage.classList.toggle('d-none', Boolean(thresholdList.querySelector('.threshold-row')));
@@ -161,6 +204,110 @@
         maximumInput.value = '';
         updateEmptyMessage();
     });
+
+    function renderThreshold(parameter, displayLabel, unit, minimum, maximum) {
+        thresholdList.querySelector(`[data-parameter="${parameter}"]`)?.remove();
+        const row = document.createElement('div');
+        row.className = 'border rounded p-2 mb-2 threshold-row';
+        row.dataset.parameter = parameter;
+        row.innerHTML = `<input type="hidden" name="minimum_${parameter}" value="${minimum}"><input type="hidden" name="maximum_${parameter}" value="${maximum}"><div class="d-flex justify-content-between align-items-center"><span><strong>${displayLabel}</strong>: ${minimum} - ${maximum} ${unit}</span><button type="button" class="btn btn-sm btn-outline-danger remove-threshold">Sterge</button></div>`;
+        row.querySelector('.remove-threshold').addEventListener('click', () => removeThreshold(row.querySelector('.remove-threshold')));
+        thresholdList.appendChild(row);
+    }
+
+    async function runAiSuggestionFlow() {
+            const enteredProfileName = profileNameInput?.value.trim() || '';
+            if (!enteredProfileName) {
+                aiFeedback.textContent = 'Introdu mai intai numele profilului.';
+                aiFeedback.className = 'small mb-3 text-danger';
+                profileNameInput?.focus();
+                return;
+            }
+
+            const searchGoal = aiSearchGoalInput?.value.trim() || '';
+            const operationMode = aiOperationModeInput?.value || 'general';
+
+            aiSuggestButton.disabled = true;
+            aiSuggestButton.textContent = 'Se cauta...';
+            if (aiRunSuggestButton) {
+                aiRunSuggestButton.disabled = true;
+                aiRunSuggestButton.textContent = 'Se genereaza...';
+            }
+            aiFeedback.textContent = '';
+
+            try {
+                const endpoint = new URL("{% url 'devices:transport_profile_suggestions' device.device_id %}", window.location.origin);
+                endpoint.searchParams.set('profile_name', enteredProfileName);
+                if (searchGoal) {
+                    endpoint.searchParams.set('search_goal', searchGoal);
+                }
+                endpoint.searchParams.set('operation_mode', operationMode);
+                const response = await fetch(endpoint.toString());
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Nu am putut genera sugestii AI.');
+                }
+
+                const suggestion = data.suggestion || {};
+                const thresholds = suggestion.thresholds || {};
+                Object.entries(thresholds).forEach(([parameter, values]) => {
+                    const option = Array.from(parameterSelect.options).find((item) => item.value === parameter);
+                    if (!option) {
+                        return;
+                    }
+                    const labelText = option.text;
+                    const unit = labelText.match(/\((.*)\)/)?.[1] || '';
+                    const displayLabel = labelText.replace(/\s*\(.*\)/, '');
+                    renderThreshold(parameter, displayLabel, unit, values.minimum, values.maximum);
+                });
+
+                if (profileNameInput && !profileNameInput.value.trim() && suggestion.profile_name) {
+                    profileNameInput.value = suggestion.profile_name;
+                }
+                if (notesInput && suggestion.notes) {
+                    notesInput.value = suggestion.notes;
+                }
+
+                updateEmptyMessage();
+                aiFeedback.textContent = suggestion.reason || 'Sugestiile AI au fost aplicate in formular.';
+                aiFeedback.className = 'small mb-3 text-success';
+                if (aiModal) {
+                    aiModal.hide();
+                }
+            } catch (error) {
+                aiFeedback.textContent = error.message || 'Eroare la incarcare sugestii AI.';
+                aiFeedback.className = 'small mb-3 text-danger';
+            } finally {
+                aiSuggestButton.disabled = false;
+                aiSuggestButton.textContent = 'Aplica sugestii AI';
+                if (aiRunSuggestButton) {
+                    aiRunSuggestButton.disabled = false;
+                    aiRunSuggestButton.textContent = 'Genereaza sugestii';
+                }
+            }
+    }
+
+    if (aiSuggestButton) {
+        aiSuggestButton.addEventListener('click', () => {
+            const enteredProfileName = profileNameInput?.value.trim() || '';
+            if (!enteredProfileName) {
+                aiFeedback.textContent = 'Introdu mai intai numele profilului.';
+                aiFeedback.className = 'small mb-3 text-danger';
+                profileNameInput?.focus();
+                return;
+            }
+
+            if (aiModal) {
+                aiModal.show();
+            } else {
+                runAiSuggestionFlow();
+            }
+        });
+    }
+
+    if (aiRunSuggestButton) {
+        aiRunSuggestButton.addEventListener('click', runAiSuggestionFlow);
+    }
 })();
 </script>
 {% endblock %}

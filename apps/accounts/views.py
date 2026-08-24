@@ -46,6 +46,9 @@ def profile(request):
             print(f"Error fetching username from Supabase: {e}")
 
     logger.info("[profile] resolved username for user %s: %r", supabase_user_id, username)
+    username_is_set = bool(isinstance(username, str) and username.strip())
+    request.session["username_set"] = username_is_set
+    request.session["username_checked_for"] = supabase_user_id
     
     # Fetch all user devices
     user_devices = []
@@ -90,6 +93,7 @@ def profile(request):
             "qr_login_request_id": qr_login_request_id,
             "qr_login_data": qr_login_data,
             "username": username,
+            "username_is_set": username_is_set,
             "user_devices": user_devices,
             "device_count": len(user_devices),
             "session_data": json.dumps(session_data, indent=2),
@@ -167,34 +171,20 @@ def manage_username(request):
             )
         
         supabase = get_service()
-        
-        # Try to save/update username in Supabase
-        # If RLS prevents it, we'll still return success and suggest localStorage fallback
-        error_msg = None
-        
-        try:
-            if request.method == "POST":
-                # Try insert
-                supabase.create_user(supabase_user_id, username)
-            elif request.method == "PUT":
-                # Try update
-                supabase.update_user(supabase_user_id, username)
-        except Exception as e:
-            error_msg = str(e)
-            # If it fails due to RLS, log it but continue - we can still return success
-            # because the API caller can use localStorage as fallback
-            print(f"⚠️ Supabase operation failed (RLS or other): {e}")
-            print("ℹ️ Username will be stored in localStorage instead")
-        
-        # Return success regardless of Supabase operation
-        # Client can use localStorage as fallback
+
+        existing_user = supabase.get_user(supabase_user_id)
+        if existing_user:
+            supabase.update_user(supabase_user_id, username)
+        else:
+            supabase.create_user(supabase_user_id, username)
+
+        request.session["username_set"] = True
+        request.session["username_checked_for"] = supabase_user_id
+
         return JsonResponse({
             "success": True,
             "message": "Username saved successfully",
             "username": username,
-            "note": "Currently using localStorage storage. Supabase integration pending.",
-            "storage": "localStorage",
-            "supabase_error": error_msg  # Debugging info
         })
         
     except json.JSONDecodeError:
@@ -205,7 +195,7 @@ def manage_username(request):
     except Exception as e:
         print(f"Error managing username: {e}")
         return JsonResponse(
-            {"success": False, "error": str(e)},
+            {"success": False, "error": "Nu am putut salva username-ul in baza de date."},
             status=500
         )
 

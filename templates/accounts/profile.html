@@ -16,6 +16,31 @@
 
 {% block content %}
 <div class="container mt-5">
+    {% if not username_is_set %}
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning-subtle">
+                    <h5 class="mb-0">⚠️ Finalizează profilul pentru a continua</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Trebuie să alegi un nume de utilizator înainte să folosești dashboard-ul, dispozitivele și setările de praguri.</p>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-8">
+                            <label for="username-input" class="form-label">Nume utilizator</label>
+                            <input id="username-input" type="text" class="form-control" maxlength="50" autocomplete="off" placeholder="Ex.: sebi.dolca">
+                            <div id="username-feedback" class="small mt-2"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" id="save-username-btn" class="btn btn-primary w-100">Salvează numele</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Welcome Section -->
     <div class="row mb-4">
         <div class="col-lg-12">
@@ -45,7 +70,9 @@
     
     <div class="row mb-4">
         <div class="col">
+            {% if username_is_set %}
             <a href="{% url 'dashboard:index' %}" class="btn btn-sm btn-outline-secondary mb-3">← Înapoi la Dashboard</a>
+            {% endif %}
             <h3 class="h5">📊 Informații Cont Detaliate</h3>
             <p class="text-muted small">Toate datele tale de autentificare, dispozitive și sesiune</p>
         </div>
@@ -256,6 +283,9 @@
         const statusText = document.getElementById('theme-update-status');
         const badge = document.getElementById('theme-current-badge');
         const csrfToken = document.getElementById('theme-csrf')?.value || '';
+        const usernameInput = document.getElementById('username-input');
+        const usernameFeedback = document.getElementById('username-feedback');
+        const usernameSaveBtn = document.getElementById('save-username-btn');
 
         function setTheme(theme) {
             document.documentElement.setAttribute('data-bs-theme', theme);
@@ -306,6 +336,46 @@
                 persistTheme(theme);
             });
         });
+
+        if (usernameSaveBtn && usernameInput) {
+            usernameSaveBtn.addEventListener('click', async () => {
+                const username = usernameInput.value.trim();
+                usernameFeedback.textContent = '';
+
+                if (!username) {
+                    usernameFeedback.textContent = 'Introdu un nume de utilizator.';
+                    usernameFeedback.className = 'small mt-2 text-danger';
+                    return;
+                }
+
+                usernameSaveBtn.disabled = true;
+                usernameSaveBtn.textContent = 'Se salvează...';
+
+                try {
+                    const response = await fetch("{% url 'accounts:manage_username' %}", {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken,
+                        },
+                        body: JSON.stringify({ username })
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.error || 'Nu am putut salva username-ul.');
+                    }
+
+                    usernameFeedback.textContent = 'Username salvat. Se reîncarcă profilul...';
+                    usernameFeedback.className = 'small mt-2 text-success';
+                    setTimeout(() => window.location.reload(), 400);
+                } catch (error) {
+                    usernameFeedback.textContent = error.message || 'Eroare la salvare.';
+                    usernameFeedback.className = 'small mt-2 text-danger';
+                    usernameSaveBtn.disabled = false;
+                    usernameSaveBtn.textContent = 'Salvează numele';
+                }
+            });
+        }
     })();
 </script>
 {% endblock %}
