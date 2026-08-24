@@ -70,7 +70,7 @@
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0">💬 AI Chatbot</h5>
                     </div>
-                    <div class="card-body" style="height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                    <div class="card-body chat-display-container" style="height: 400px; overflow-y: auto;">
                         <div id="chat-display"></div>
                     </div>
                     <div class="card-footer">
@@ -352,8 +352,8 @@
     }
     
     .chat-assistant .message-content {
-        background-color: #e9ecef;
-        color: #333;
+        background-color: var(--app-surface);
+        color: var(--app-text);
         border-radius: 15px 15px 15px 0;
     }
     
@@ -377,6 +377,10 @@
     .message-content p {
         margin: 0;
     }
+
+    .chat-display-container {
+        background-color: var(--app-surface);
+    }
     
     .message-time {
         display: block;
@@ -394,7 +398,7 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background-color: #999;
+        background-color: var(--app-muted);
         animation: typing 1.4s infinite;
     }
     
