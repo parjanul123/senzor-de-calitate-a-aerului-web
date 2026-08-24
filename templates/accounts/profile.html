@@ -2,12 +2,24 @@
 
 {% block title %}Profil Utilizator - Senzor Calitate{% endblock %}
 
+{% block extra_css %}
+<style>
+    [data-bs-theme="light"] .profile-welcome-card .card-body {
+        color: #0f172a !important;
+    }
+
+    [data-bs-theme="light"] .profile-welcome-card .text-white-50 {
+        color: rgba(15, 23, 42, 0.8) !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-5">
     <!-- Welcome Section -->
     <div class="row mb-4">
         <div class="col-lg-12">
-            <div class="card bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card bg-gradient profile-welcome-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                 <div class="card-body text-white p-5">
                     <div class="row align-items-center">
                         <div class="col">
@@ -15,7 +27,7 @@
                                 👋 Bine ai venit!
                             </h2>
                             <div style="font-size: 2rem; font-weight: bold; margin-bottom: 1rem;">
-                                {{ username|default:"Utilizator" }}
+                                {% if username is not None %}{{ username }}{% else %}<span class="text-white-50">Fără username în DB</span>{% endif %}
                             </div>
                             <p class="mb-0 lead">
                                 Conectat cu succes la profilul tău
@@ -36,6 +48,26 @@
             <a href="{% url 'dashboard:index' %}" class="btn btn-sm btn-outline-secondary mb-3">← Înapoi la Dashboard</a>
             <h3 class="h5">📊 Informații Cont Detaliate</h3>
             <p class="text-muted small">Toate datele tale de autentificare, dispozitive și sesiune</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🎨 Aspect Interfață</h5>
+                    <span class="badge bg-light text-dark" id="theme-current-badge">Tema actuală: {{ ui_theme|default:"light"|title }}</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Alege modul vizual preferat. Setarea se salvează în sesiunea ta.</p>
+                    <input type="hidden" id="theme-csrf" value="{{ csrf_token }}">
+                    <div class="btn-group" role="group" aria-label="Theme switcher">
+                        <button type="button" class="btn btn-outline-primary theme-switch-btn" data-theme="light">☀️ Light</button>
+                        <button type="button" class="btn btn-outline-primary theme-switch-btn" data-theme="dark">🌙 Dark</button>
+                    </div>
+                    <small class="d-block mt-2 text-muted" id="theme-update-status"></small>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -215,4 +247,65 @@
     <p>© 2024 Sistem de Monitorizare Calitate Aer. Toate drepturile rezervate.</p>
 </footer>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const buttons = Array.from(document.querySelectorAll('.theme-switch-btn'));
+        const statusText = document.getElementById('theme-update-status');
+        const badge = document.getElementById('theme-current-badge');
+        const csrfToken = document.getElementById('theme-csrf')?.value || '';
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('ui-theme', theme);
+
+            const themeLabel = theme === 'dark' ? 'Dark' : 'Light';
+            if (badge) {
+                badge.textContent = 'Tema actuală: ' + themeLabel;
+            }
+
+            buttons.forEach((btn) => {
+                const isActive = btn.dataset.theme === theme;
+                btn.classList.toggle('active', isActive);
+            });
+        }
+
+        async function persistTheme(theme) {
+            try {
+                const response = await fetch("{% url 'accounts:set_theme' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: JSON.stringify({ theme })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Nu am putut salva tema.');
+                }
+
+                setTheme(theme);
+                statusText.textContent = 'Tema a fost salvată cu succes.';
+                statusText.className = 'd-block mt-2 text-success';
+            } catch (error) {
+                statusText.textContent = error.message || 'Eroare la salvarea temei.';
+                statusText.className = 'd-block mt-2 text-danger';
+            }
+        }
+
+        const initialTheme = document.documentElement.getAttribute('data-bs-theme') || '{{ ui_theme|default:"light" }}';
+        setTheme(initialTheme === 'dark' ? 'dark' : 'light');
+
+        buttons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const theme = button.dataset.theme;
+                persistTheme(theme);
+            });
+        });
+    })();
+</script>
 {% endblock %}

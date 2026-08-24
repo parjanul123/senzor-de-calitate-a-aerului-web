@@ -182,6 +182,19 @@ class SupabaseService:
             self._handle_error("SELECT", "users", e)
         except Exception as e:
             self._handle_error("SELECT", "users", e)
+
+    def get_username(self, user_id: str) -> Optional[str]:
+        """Fetch username only from users table by user id."""
+        try:
+            logger.debug(f"📖 Fetching username for user: {user_id}")
+            response = self.client.table("users").select("username").eq("id", user_id).maybe_single().execute()
+            if response and response.data and "username" in response.data:
+                return response.data.get("username")
+            return None
+        except APIError as e:
+            self._handle_error("SELECT", "users", e)
+        except Exception as e:
+            self._handle_error("SELECT", "users", e)
     
     def create_user(self, user_id: str, username: str) -> Optional[Dict[str, Any]]:
         """Create new user profile in users table."""

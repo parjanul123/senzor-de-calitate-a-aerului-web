@@ -1,11 +1,27 @@
+import json
+import logging
+import re
+
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-import json
+
 from config.supabase_client import get_service
-from .models import UserProfile
+
+logger = logging.getLogger(__name__)
+
+
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._\-\s]+$")
+RESERVED_USERNAMES = {
+    "admin",
+    "administrator",
+    "root",
+    "system",
+    "support",
+    "null",
+    "undefined",
+}
 
 
 def profile(request):
@@ -17,27 +33,19 @@ def profile(request):
     
     supabase = get_service()
     
-    # Get or create user profile with username from local database
+    # Load username from Supabase users table (source of truth)
     username = None
-    user_profile = None
     if supabase_user_id:
         try:
-            # Try to get existing profile
-            user_profile = UserProfile.objects.filter(supabase_user_id=supabase_user_id).first()
-            
-            if user_profile:
-                username = user_profile.username
-            else:
-                # Create new profile with auto-generated username
-                username = f"Utilizator_{supabase_user_id[:8]}"
-                user_profile = UserProfile.objects.create(
-                    supabase_user_id=supabase_user_id,
-                    username=username
-                )
+            username = supabase.get_username(supabase_user_id)
+            if username is None:
+                user_record = supabase.get_user(supabase_user_id)
+                if user_record:
+                    username = user_record.get("username")
         except Exception as e:
-            print(f"Error with user profile: {e}")
-            # Fallback to generated username
-            username = f"Utilizator_{supabase_user_id[:8]}"
+            print(f"Error fetching username from Supabase: {e}")
+
+    logger.info("[profile] resolved username for user %s: %r", supabase_user_id, username)
     
     # Fetch all user devices
     user_devices = []
@@ -81,7 +89,6 @@ def profile(request):
             "authenticated_at": auth_datetime or authenticated_at,
             "qr_login_request_id": qr_login_request_id,
             "qr_login_data": qr_login_data,
-            "user_profile": user_profile,
             "username": username,
             "user_devices": user_devices,
             "device_count": len(user_devices),
@@ -103,8 +110,28 @@ def manage_username(request):
         )
     
     try:
+        if request.content_type and "application/json" not in request.content_type:
+            return JsonResponse(
+                {"success": False, "error": "Content-Type must be application/json"},
+                status=415,
+            )
+
+        if len(request.body or b"") > 1024:
+            return JsonResponse(
+                {"success": False, "error": "Payload too large"},
+                status=413,
+            )
+
         data = json.loads(request.body)
-        username = data.get("username", "").strip()
+        raw_username = data.get("username", "")
+
+        if not isinstance(raw_username, str):
+            return JsonResponse(
+                {"success": False, "error": "Username must be a string"},
+                status=400,
+            )
+
+        username = raw_username.strip()
         
         if not username:
             return JsonResponse(
@@ -117,27 +144,47 @@ def manage_username(request):
                 {"success": False, "error": "Username must be between 3 and 50 characters"},
                 status=400
             )
+
+        if username.lower() in RESERVED_USERNAMES:
+            return JsonResponse(
+                {"success": False, "error": "This username is reserved"},
+                status=400,
+            )
+
+        if "  " in username:
+            return JsonResponse(
+                {"success": False, "error": "Username cannot contain consecutive spaces"},
+                status=400,
+            )
+
+        if not USERNAME_PATTERN.fullmatch(username):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Username may contain letters, numbers, spaces, '.', '_' and '-' only",
+                },
+                status=400,
+            )
         
         supabase = get_service()
         
         # Try to save/update username in Supabase
         # If RLS prevents it, we'll still return success and suggest localStorage fallback
-        result = None
         error_msg = None
         
         try:
             if request.method == "POST":
                 # Try insert
-                result = supabase.create_user(supabase_user_id, username)
+                supabase.create_user(supabase_user_id, username)
             elif request.method == "PUT":
                 # Try update
-                result = supabase.update_user(supabase_user_id, username)
+                supabase.update_user(supabase_user_id, username)
         except Exception as e:
             error_msg = str(e)
             # If it fails due to RLS, log it but continue - we can still return success
             # because the API caller can use localStorage as fallback
             print(f"⚠️ Supabase operation failed (RLS or other): {e}")
-            print(f"ℹ️ Username will be stored in localStorage instead")
+            print("ℹ️ Username will be stored in localStorage instead")
         
         # Return success regardless of Supabase operation
         # Client can use localStorage as fallback
@@ -160,4 +207,32 @@ def manage_username(request):
         return JsonResponse(
             {"success": False, "error": str(e)},
             status=500
+        )
+
+
+@require_http_methods(["POST"])
+def set_theme(request):
+    """Persist UI theme preference in the user session."""
+    try:
+        if request.content_type and "application/json" not in request.content_type:
+            return JsonResponse(
+                {"success": False, "error": "Content-Type must be application/json"},
+                status=415,
+            )
+
+        data = json.loads(request.body)
+        theme = data.get("theme")
+        if theme not in {"light", "dark"}:
+            return JsonResponse(
+                {"success": False, "error": "Theme must be either 'light' or 'dark'"},
+                status=400,
+            )
+
+        request.session["ui_theme"] = theme
+        request.session.modified = True
+        return JsonResponse({"success": True, "theme": theme})
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON"},
+            status=400,
         )

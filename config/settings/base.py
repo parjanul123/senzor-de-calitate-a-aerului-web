@@ -29,6 +29,8 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "config.security_middleware.RateLimitMiddleware",
+    "config.security_middleware.SecurityHeadersMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "config.auth_middleware.RequireAuthMiddleware",
 ]
@@ -44,6 +46,7 @@ TEMPLATES = [
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
+                "config.context_processors.ui_preferences",
             ],
         },
     },
@@ -76,6 +79,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = "DENY"
 
 # CSRF Protection Settings
 CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
@@ -83,6 +88,18 @@ CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read the token
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_AGE = 31449600  # 1 year
 CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
+
+# Content Security Policy custom sources for runtime APIs.
+CSP_CONNECT_SRC_EXTRA = []
+
+# Per-endpoint rate limiting rules.
+RATE_LIMIT_RULES = {
+    "/profile/api/username/": {"limit": 20, "window": 60, "methods": ["POST", "PUT"]},
+    "/profile/api/theme/": {"limit": 20, "window": 60, "methods": ["POST"]},
+    "/qr-login/complete/": {"limit": 15, "window": 60, "methods": ["POST"]},
+    "/qr-login/logout/": {"limit": 30, "window": 60, "methods": ["GET", "POST"]},
+    "/qr-login/test-approve/": {"limit": 5, "window": 60, "methods": ["POST"]},
+}
 
 # Supabase Auth is the sole identity provider; Django authentication is not enabled.
 SUPABASE_URL = ""
