@@ -35,7 +35,7 @@ from io import BytesIO
 import qrcode
 from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
@@ -348,11 +348,11 @@ def complete_login(request):
     return response
 
 
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def logout(request):
-    """Logout the user by clearing the session."""
+    """Logout the user by clearing the session and redirecting to QR login."""
     request.session.flush()
-    return JsonResponse({"success": True})
+    return redirect("qr_login:start")
 
 
 @require_http_methods(["POST"])
