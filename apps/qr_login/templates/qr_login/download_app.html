@@ -50,6 +50,17 @@
     .download-link {
       word-break: break-all;
     }
+    .back-link {
+      color: #667eea;
+      display: inline-flex;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 18px;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      color: #764ba2;
+    }
   </style>
 </head>
 <body>
@@ -65,6 +76,7 @@
       Download aplicația Android
     </a>
     <div class="download-link small text-muted">{{ android_app_download_url }}</div>
+    <a class="back-link" href="{% url 'qr_login:start' %}">Înapoi la codul QR</a>
   </main>
 </body>
 </html>
