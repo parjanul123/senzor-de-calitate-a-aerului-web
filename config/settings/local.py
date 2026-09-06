@@ -15,6 +15,17 @@ railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
 if railway_public_domain:
 	ALLOWED_HOSTS.append(railway_public_domain)
 
+CSRF_TRUSTED_ORIGINS = [
+	origin.strip()
+	for origin in os.getenv(
+		"DJANGO_CSRF_TRUSTED_ORIGINS",
+		"http://localhost:8000,http://127.0.0.1:8000,https://*.up.railway.app",
+	).split(",")
+	if origin.strip()
+]
+if railway_public_domain:
+	CSRF_TRUSTED_ORIGINS.append(f"https://{railway_public_domain}")
+
 SUPABASE_URL = os.getenv("SUPABASE_URL", SUPABASE_URL)
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", SUPABASE_ANON_KEY)
 SUPABASE_SERVICE_ROLE_KEY = (
