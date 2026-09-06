@@ -66,11 +66,17 @@ def _get_android_app_download_url(request):
     configured_url = getattr(settings, "ANDROID_APP_DOWNLOAD_URL", "")
     if configured_url:
         if configured_url.startswith("/"):
-            return request.build_absolute_uri(configured_url)
+            absolute_url = request.build_absolute_uri(configured_url)
+            if request.get_host().endswith(".up.railway.app"):
+                return absolute_url.replace("http://", "https://", 1)
+            return absolute_url
         return configured_url
 
     static_url = settings.STATIC_URL.rstrip("/").lstrip("/")
-    return request.build_absolute_uri(f"/{static_url}/download/app-debug.apk")
+    absolute_url = request.build_absolute_uri(f"/{static_url}/download/app-debug.apk")
+    if request.get_host().endswith(".up.railway.app"):
+        return absolute_url.replace("http://", "https://", 1)
+    return absolute_url
 
 
 @require_http_methods(["GET"])
