@@ -97,6 +97,7 @@ CSP_CONNECT_SRC_EXTRA = []
 RATE_LIMIT_RULES = {
     "/profile/api/username/": {"limit": 20, "window": 60, "methods": ["POST", "PUT"]},
     "/profile/api/theme/": {"limit": 20, "window": 60, "methods": ["POST"]},
+    "/qr-login/approve/": {"limit": 30, "window": 60, "methods": ["POST"]},
     "/qr-login/complete/": {"limit": 15, "window": 60, "methods": ["POST"]},
     "/qr-login/logout/": {"limit": 30, "window": 60, "methods": ["GET", "POST"]},
     "/qr-login/test-approve/": {"limit": 5, "window": 60, "methods": ["POST"]},

@@ -29,6 +29,7 @@ Note:
 import base64
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -37,6 +38,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from config.supabase_client import get_service
@@ -398,6 +400,49 @@ def logout(request):
     """Logout the user by clearing the session and redirecting to QR login."""
     request.session.flush()
     return redirect("qr_login:start")
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def approve_from_android(request):
+    """Approve a QR login request from the Android app using a Supabase user session."""
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        return JsonResponse({"success": False, "error": "Missing Supabase access token"}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    token = str(data.get("token", "")).strip()
+    try:
+        uuid.UUID(token)
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid QR token"}, status=400)
+
+    supabase = get_service()
+    access_token = authorization.removeprefix("Bearer ").strip()
+    user_id = supabase.get_auth_user_id(access_token)
+    if not user_id:
+        return JsonResponse({"success": False, "error": "Invalid Supabase access token"}, status=401)
+
+    try:
+        approved_at = timezone.now().isoformat()
+        result = supabase.approve_login_request_by_token(token, user_id, approved_at)
+    except Exception as e:
+        logger.error(f"❌ [approve_from_android] Failed to approve QR login: {str(e)}")
+        return JsonResponse({"success": False, "error": "Failed to approve QR login"}, status=500)
+
+    if not result:
+        return JsonResponse({"success": False, "error": "QR code is invalid, expired, or already used"}, status=404)
+
+    return JsonResponse({
+        "success": True,
+        "status": "approved",
+        "request_id": result.get("id"),
+        "user_id": user_id,
+    })
 
 
 @require_http_methods(["POST"])

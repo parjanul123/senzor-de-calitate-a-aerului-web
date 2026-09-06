@@ -771,6 +771,53 @@ class SupabaseService:
         except Exception as e:
             self._handle_error("UPDATE", "web_login_requests", e)
 
+    def approve_login_request_by_token(self, token: str, user_id: str, approved_at: str) -> Optional[Dict[str, Any]]:
+        """Approve a pending login request using the QR token scanned by Android."""
+        try:
+            logger.info("🔄 Approving login request from Android QR token")
+            response = (
+                self.client.table("web_login_requests")
+                .update({
+                    "status": "approved",
+                    "user_id": user_id,
+                    "approved_at": approved_at,
+                })
+                .eq("token", token)
+                .eq("status", "pending")
+                .gt("expires_at", approved_at)
+                .is_("consumed_at", "null")
+                .execute()
+            )
+
+            if response is None:
+                logger.error("❌ Supabase returned None response for Android approval")
+                return None
+
+            result = response.data[0] if response.data else None
+            if result:
+                logger.info("✅ Android QR login request approved")
+                logger.debug(f"   Request ID: {result.get('id')}")
+                logger.debug(f"   User ID: {result.get('user_id')}")
+            else:
+                logger.warning("⚠️ Android approval found no pending, unexpired login request")
+
+            return result
+
+        except APIError as e:
+            self._handle_error("UPDATE", "web_login_requests", e)
+        except Exception as e:
+            self._handle_error("UPDATE", "web_login_requests", e)
+
+    def get_auth_user_id(self, access_token: str) -> Optional[str]:
+        """Validate a Supabase access token and return its user id."""
+        try:
+            response = self.client.auth.get_user(access_token)
+            user = getattr(response, "user", None)
+            return str(user.id) if user and getattr(user, "id", None) else None
+        except Exception as e:
+            logger.warning(f"⚠️ Could not validate Supabase access token: {type(e).__name__}")
+            return None
+
 # Singleton instance - ONE client for entire application
 _service: Optional['SupabaseService'] = None
 

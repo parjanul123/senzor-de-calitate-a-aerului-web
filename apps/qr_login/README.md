@@ -9,3 +9,15 @@ supabase.postgrest.rpc("approve_web_login_request", mapOf("request_token" to tok
 ```
 
 Functia seteaza atomic `status = 'approved'`, `user_id = auth.uid()` si `approved_at`. Nu acordati aplicatiei Android acces direct de `UPDATE` la tabela. Tokenul este valid 60 de secunde, iar site-ul il consuma o singura data dupa notificarea Broadcast.
+
+Alternativ, aplicatia Android poate aproba login-ul prin backend-ul web public, trimitand tokenul scanat si access token-ul Supabase al utilizatorului autentificat:
+
+```http
+POST /qr-login/approve/
+Authorization: Bearer <supabase_access_token>
+Content-Type: application/json
+
+{"token":"<tokenul-din-qr>"}
+```
+
+Backend-ul valideaza access token-ul in Supabase Auth si aproba request-ul pentru utilizatorul autentificat.
