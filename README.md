@@ -23,4 +23,6 @@ Nu exista fallback SQLite. Django se opreste explicit daca `DATABASE_URL` lipses
 
 ## Railway
 
-Seteaza in Railway variabilele `DJANGO_SETTINGS_MODULE=config.settings.production`, `DJANGO_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `DJANGO_ALLOWED_HOSTS` si `DJANGO_CSRF_TRUSTED_ORIGINS`. Configuratia Railway ruleaza migrarile si colecteaza fisierele statice inaintea pornirii Gunicorn.
+Seteaza in Railway variabilele `DJANGO_SETTINGS_MODULE=config.settings.production`, `DJANGO_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL` si `SUPABASE_ANON_KEY`. Configuratia Railway ruleaza migrarile si colecteaza fisierele statice inaintea pornirii Gunicorn, iar aplicatia porneste pe portul `$PORT` furnizat de Railway.
+
+`DJANGO_ALLOWED_HOSTS` si `DJANGO_CSRF_TRUSTED_ORIGINS` pot fi setate manual, dar domeniul public Railway este preluat automat din `RAILWAY_PUBLIC_DOMAIN`. Fisierele din `static/`, inclusiv APK-ul Android, sunt servite prin WhiteNoise dupa `collectstatic`.

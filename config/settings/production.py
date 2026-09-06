@@ -2,10 +2,23 @@ import os
 
 from .base import *
 
+
+def _split_csv(value):
+	return [item.strip() for item in value.split(",") if item.strip()]
+
+
+railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 DEBUG = False
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
-CSRF_TRUSTED_ORIGINS = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+
+ALLOWED_HOSTS = _split_csv(os.getenv("DJANGO_ALLOWED_HOSTS", ""))
+if railway_public_domain:
+    ALLOWED_HOSTS.append(railway_public_domain)
+
+CSRF_TRUSTED_ORIGINS = _split_csv(os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", ""))
+if railway_public_domain:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{railway_public_domain}")
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
