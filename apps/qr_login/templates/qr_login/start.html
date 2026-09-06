@@ -17,7 +17,7 @@
       background: white;
       border-radius: 16px;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-      max-width: 360px;
+      max-width: 420px;
       padding: 40px;
       text-align: center;
     }
@@ -44,6 +44,35 @@
     .qr-code-box img {
       max-width: 100%;
       border-radius: 8px;
+    }
+    .app-download {
+      border: 1px solid #e6e6e6;
+      border-radius: 12px;
+      margin-bottom: 28px;
+      padding: 16px;
+    }
+    .app-download-title {
+      color: #1a1a1a;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .app-download-text {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .app-download-qr {
+      background: #f5f5f5;
+      border-radius: 10px;
+      display: inline-flex;
+      margin-top: 14px;
+      padding: 10px;
+    }
+    .app-download-qr img {
+      border-radius: 6px;
+      height: 132px;
+      width: 132px;
     }
     .countdown {
       font-size: 13px;
@@ -103,6 +132,17 @@
   <div class="qr-container">
     <h1 class="qr-title">Conectare prin QR</h1>
     <p class="qr-subtitle">Deschide aplicația Android și scanează codul de mai jos</p>
+
+    <div class="app-download">
+      <div class="app-download-title">Nu ai aplicația Android?</div>
+      <p class="app-download-text">Descarcă aplicația sau scanează codul cu telefonul pentru instalare.</p>
+      <a class="btn btn-primary w-100" href="{{ android_app_download_url }}" download>
+        Download aplicația Android
+      </a>
+      <div class="app-download-qr" aria-label="Cod QR pentru download aplicația Android">
+        <img src="{{ android_app_qr_image }}" alt="Cod QR pentru instalarea aplicației Android">
+      </div>
+    </div>
     
     {% if error %}
       <div class="status-message error show">

@@ -74,6 +74,7 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+ANDROID_APP_DOWNLOAD_URL = os.getenv("ANDROID_APP_DOWNLOAD_URL", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"

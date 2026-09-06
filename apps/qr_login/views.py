@@ -45,6 +45,34 @@ from config.supabase_client import get_service
 logger = logging.getLogger(__name__)
 
 
+def _make_qr_image_data(data):
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    qr_image = qr.make_image(fill_color="black", back_color="white")
+
+    buffer = BytesIO()
+    qr_image.save(buffer, format="PNG")
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+    return f"data:image/png;base64,{qr_base64}"
+
+
+def _get_android_app_download_url(request):
+    configured_url = getattr(settings, "ANDROID_APP_DOWNLOAD_URL", "")
+    if configured_url:
+        if configured_url.startswith("/"):
+            return request.build_absolute_uri(configured_url)
+        return configured_url
+
+    static_url = settings.STATIC_URL.rstrip("/").lstrip("/")
+    return request.build_absolute_uri(f"/{static_url}/download/app-debug.apk")
+
+
 @require_http_methods(["GET"])
 def start(request):
     """
@@ -59,6 +87,13 @@ def start(request):
     - `token` is what goes in the QR code and what mobile app scans
     """
     logger.info("📲 [start] QR login page requested")
+
+    android_app_download_url = _get_android_app_download_url(request)
+    android_app_qr_image = _make_qr_image_data(android_app_download_url)
+    base_context = {
+        "android_app_download_url": android_app_download_url,
+        "android_app_qr_image": android_app_qr_image,
+    }
     
     supabase = get_service()
     
@@ -76,7 +111,7 @@ def start(request):
             return render(
                 request,
                 "qr_login/start.html",
-                {"error": "Failed to create login request"},
+                {**base_context, "error": "Failed to create login request"},
                 status=500,
             )
     except Exception as e:
@@ -84,7 +119,7 @@ def start(request):
         return render(
             request,
             "qr_login/start.html",
-            {"error": f"Database error: {str(e)}"},
+            {**base_context, "error": f"Database error: {str(e)}"},
             status=500,
         )
     
@@ -102,29 +137,15 @@ def start(request):
     logger.info(f"   Generating QR code with data: {qr_data}")
     
     try:
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(qr_data)
-        qr.make(fit=True)
-        qr_image = qr.make_image(fill_color="black", back_color="white")
+        qr_image_data = _make_qr_image_data(qr_data)
         
-        # Convert to base64 for embedding in HTML
-        buffer = BytesIO()
-        qr_image.save(buffer, format="PNG")
-        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-        qr_image_data = f"data:image/png;base64,{qr_base64}"
-        
-        logger.info(f"✅ [start] QR code generated (PNG, base64 encoded, {len(qr_base64)} chars)")
+        logger.info(f"✅ [start] QR code generated (PNG, base64 encoded, {len(qr_image_data)} chars)")
     except Exception as e:
         logger.error(f"❌ [start] QR generation error: {str(e)}")
         return render(
             request,
             "qr_login/start.html",
-            {"error": f"QR generation error: {str(e)}"},
+            {**base_context, "error": f"QR generation error: {str(e)}"},
             status=500,
         )
     
@@ -137,6 +158,7 @@ def start(request):
         request,
         "qr_login/start.html",
         {
+            **base_context,
             "request_id": request_id,
             "token": token,
             "qr_image": qr_image_data,
