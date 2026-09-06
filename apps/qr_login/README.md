@@ -21,3 +21,14 @@ Content-Type: application/json
 ```
 
 Backend-ul valideaza access token-ul in Supabase Auth si aproba request-ul pentru utilizatorul autentificat.
+
+Pentru compatibilitate cu aplicatia Android locala existenta, endpoint-ul accepta si payload-ul vechi cu `request_id` si `user_id`:
+
+```http
+POST /qr-login/approve/
+Content-Type: application/json
+
+{"request_id":"<request_id_din_web>","user_id":"<uuid_utilizator>"}
+```
+
+Formatul recomandat ramane cel cu `Authorization: Bearer <supabase_access_token>` si `token`, pentru ca leaga aprobarea de sesiunea reala Supabase a utilizatorului din Android.

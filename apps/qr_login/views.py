@@ -406,30 +406,59 @@ def logout(request):
 @require_http_methods(["POST"])
 def approve_from_android(request):
     """Approve a QR login request from the Android app using a Supabase user session."""
-    authorization = request.headers.get("Authorization", "")
-    if not authorization.startswith("Bearer "):
-        return JsonResponse({"success": False, "error": "Missing Supabase access token"}, status=401)
-
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, AttributeError):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
     token = str(data.get("token", "")).strip()
-    try:
-        uuid.UUID(token)
-    except (TypeError, ValueError):
-        return JsonResponse({"success": False, "error": "Invalid QR token"}, status=400)
+    request_id = str(data.get("request_id", "")).strip()
+
+    if not token and not request_id:
+        return JsonResponse({"success": False, "error": "Missing QR token or request_id"}, status=400)
+
+    for value, label in ((token, "QR token"), (request_id, "request_id")):
+        if not value:
+            continue
+        try:
+            uuid.UUID(value)
+        except (TypeError, ValueError):
+            return JsonResponse({"success": False, "error": f"Invalid {label}"}, status=400)
 
     supabase = get_service()
-    access_token = authorization.removeprefix("Bearer ").strip()
-    user_id = supabase.get_auth_user_id(access_token)
+
+    authorization = request.headers.get("Authorization", "")
+    user_id = None
+    if authorization.startswith("Bearer "):
+        access_token = authorization.removeprefix("Bearer ").strip()
+        user_id = supabase.get_auth_user_id(access_token)
+    else:
+        user_id = str(data.get("user_id", "")).strip()
+
     if not user_id:
-        return JsonResponse({"success": False, "error": "Invalid Supabase access token"}, status=401)
+        return JsonResponse({"success": False, "error": "Missing authenticated user"}, status=401)
+
+    try:
+        uuid.UUID(user_id)
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid user_id"}, status=400)
+
+    if not supabase.get_user(user_id):
+        return JsonResponse({"success": False, "error": "User not found"}, status=404)
 
     try:
         approved_at = timezone.now().isoformat()
-        result = supabase.approve_login_request_by_token(token, user_id, approved_at)
+        if token:
+            result = supabase.approve_login_request_by_token(token, user_id, approved_at)
+        else:
+            result = supabase.update_login_request(
+                request_id,
+                {
+                    "status": "approved",
+                    "user_id": user_id,
+                    "approved_at": approved_at,
+                },
+            )
     except Exception as e:
         logger.error(f"❌ [approve_from_android] Failed to approve QR login: {str(e)}")
         return JsonResponse({"success": False, "error": "Failed to approve QR login"}, status=500)
