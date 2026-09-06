@@ -6,6 +6,7 @@ app_name = "qr_login"
 
 urlpatterns = [
     path("", views.start, name="start"),
+    path("download-app/", views.download_app, name="download_app"),
     path("check-status/", views.check_status, name="check_status"),
     path("complete/", views.complete_login, name="complete"),
     path("logout/", views.logout, name="logout"),

@@ -74,6 +74,21 @@ def _get_android_app_download_url(request):
 
 
 @require_http_methods(["GET"])
+def download_app(request):
+    android_app_download_url = _get_android_app_download_url(request)
+    android_app_qr_image = _make_qr_image_data(android_app_download_url)
+
+    return render(
+        request,
+        "qr_login/download_app.html",
+        {
+            "android_app_download_url": android_app_download_url,
+            "android_app_qr_image": android_app_qr_image,
+        },
+    )
+
+
+@require_http_methods(["GET"])
 def start(request):
     """
     Display QR code for authentication.
@@ -89,10 +104,8 @@ def start(request):
     logger.info("📲 [start] QR login page requested")
 
     android_app_download_url = _get_android_app_download_url(request)
-    android_app_qr_image = _make_qr_image_data(android_app_download_url)
     base_context = {
         "android_app_download_url": android_app_download_url,
-        "android_app_qr_image": android_app_qr_image,
     }
     
     supabase = get_service()
