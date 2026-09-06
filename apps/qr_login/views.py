@@ -402,8 +402,8 @@ def logout(request):
     return redirect("qr_login:start")
 
 
-@require_http_methods(["POST"])
 @csrf_exempt
+@require_http_methods(["POST"])
 def approve_from_android(request):
     """Approve a QR login request from the Android app using a Supabase user session."""
     authorization = request.headers.get("Authorization", "")
