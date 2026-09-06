@@ -4,7 +4,7 @@ from .base import *
 
 
 def _split_csv(value):
-	return [item.strip() for item in value.split(",") if item.strip()]
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
@@ -13,10 +13,12 @@ SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 DEBUG = False
 
 ALLOWED_HOSTS = _split_csv(os.getenv("DJANGO_ALLOWED_HOSTS", ""))
+ALLOWED_HOSTS.append(".up.railway.app")
 if railway_public_domain:
     ALLOWED_HOSTS.append(railway_public_domain)
 
 CSRF_TRUSTED_ORIGINS = _split_csv(os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", ""))
+CSRF_TRUSTED_ORIGINS.append("https://*.up.railway.app")
 if railway_public_domain:
     CSRF_TRUSTED_ORIGINS.append(f"https://{railway_public_domain}")
 
