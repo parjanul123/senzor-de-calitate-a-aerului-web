@@ -12,14 +12,16 @@
       justify-content: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
     }
     .qr-container {
       background: white;
       border-radius: 16px;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-      max-width: 360px;
-      padding: 40px;
+      max-width: 430px;
+      padding: 36px;
       text-align: center;
+      width: 100%;
     }
     .qr-title {
       font-size: 24px;
@@ -139,11 +141,11 @@
       </div>
     {% else %}
       <div class="qr-code-box">
-        <img id="qr-code" src="{{ qr_image }}" alt="Cod QR pentru conectare" width="260" height="260">
+        <img id="qr-code" src="{{ qr_image }}" alt="Cod QR pentru conectare" width="320" height="320">
       </div>
       
       <div class="countdown">
-        Codul expira în <span class="time" id="countdown">60</span> secunde
+        Codul expira în <span class="time" id="countdown">{{ qr_expires_in_seconds }}</span> secunde
       </div>
       
       <div id="status-message" class="status-message">
@@ -170,6 +172,7 @@
     const SUPABASE_URL = "{{ supabase_url }}".trim();
     const SUPABASE_ANON_KEY = "{{ supabase_anon_key }}".trim();
     const EXPIRES_AT = "{{ expires_at }}".trim();
+    const QR_EXPIRES_IN_SECONDS = Number("{{ qr_expires_in_seconds|default:180 }}");
     
     // Debug: Log configuration with detailed info
     console.log("=== 🔧 QR Login Configuration ===");
@@ -212,7 +215,7 @@
     const messageEl = document.getElementById("status-message");
     const messageTextEl = document.getElementById("status-text");
     const countdownEl = document.getElementById("countdown");
-    let secondsRemaining = 60;
+    let secondsRemaining = Number.isFinite(QR_EXPIRES_IN_SECONDS) ? QR_EXPIRES_IN_SECONDS : 180;
     let completed = false;
     let pollingInterval = null;
 

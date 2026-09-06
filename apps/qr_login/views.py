@@ -48,11 +48,11 @@ logger = logging.getLogger(__name__)
 def _make_qr_image_data(data):
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=12,
+        border=6,
     )
-    qr.add_data(data)
+    qr.add_data(data, optimize=0)
     qr.make(fit=True)
     qr_image = qr.make_image(fill_color="black", back_color="white")
 
@@ -60,6 +60,9 @@ def _make_qr_image_data(data):
     qr_image.save(buffer, format="PNG")
     qr_base64 = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{qr_base64}"
+
+
+QR_LOGIN_EXPIRES_IN_SECONDS = 180
 
 
 def _get_android_app_download_url(request):
@@ -116,9 +119,9 @@ def start(request):
     
     supabase = get_service()
     
-    # Calculate expiration (60 seconds from now)
+    # Calculate expiration from now
     now = timezone.now()
-    expires_at = (now + timedelta(seconds=60)).isoformat()
+    expires_at = (now + timedelta(seconds=QR_LOGIN_EXPIRES_IN_SECONDS)).isoformat()
     
     logger.info(f"   Creating login request with expiry: {expires_at}")
     
@@ -181,7 +184,8 @@ def start(request):
             "request_id": request_id,
             "token": token,
             "qr_image": qr_image_data,
-            "expires_at": login_request["expires_at"],
+                "qr_expires_in_seconds": QR_LOGIN_EXPIRES_IN_SECONDS,
+                "expires_at": expires_at,
             "supabase_url": settings.SUPABASE_URL,
             "supabase_anon_key": settings.SUPABASE_ANON_KEY,
         },
